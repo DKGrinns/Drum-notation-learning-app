@@ -1,0 +1,11 @@
+{
+  "name": "drum-reader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Learn to read drum notation: build grooves, quiz yourself, and tap along.",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs",
+    "dev": "node serve.mjs"
+  }
+}

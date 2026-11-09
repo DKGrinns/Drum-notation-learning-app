@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Learn to read drum notation: build grooves, quiz yourself, and tap along.">
+  <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Drum Reader">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <title>Drum Reader</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="nav">
+      <div class="nav-bar">
+        <button type="button" class="nav-btn" id="navLeft" hidden></button>
+        <button type="button" class="nav-btn" id="navRight" hidden></button>
+      </div>
+      <h1 class="large-title" id="title">Drum Reader</h1>
+    </header>
+
+    <main id="view"></main>
+
+    <nav class="tabbar" aria-label="Sections">
+      <div class="tabbar-inner" role="tablist">
+        <button type="button" class="tab" data-tab="build" role="tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/></g><rect x="13.5" y="13.5" width="7" height="7" rx="2" fill="currentColor" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span>Build</span>
+        </button>
+        <button type="button" class="tab" data-tab="quiz" role="tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 17.5V5.5l10-2v12"/></g><ellipse cx="6.6" cy="17.6" rx="2.9" ry="2.3" fill="currentColor"/><ellipse cx="16.6" cy="15.6" rx="2.9" ry="2.3" fill="currentColor"/></svg>
+          <span>Quiz</span>
+        </button>
+        <button type="button" class="tab" data-tab="play" role="tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="10" rx="8" ry="3"/><path d="M4 10v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/><path d="M7 2.5l4 6M17 2.5l-4 6"/></g></svg>
+          <span>Play</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+</body>
+</html>
