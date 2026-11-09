@@ -164,12 +164,15 @@ function click(t, accent, out) {
 
 const val = (v) => (typeof v === 'function' ? v() : v);
 
+const TICKS = 12; // scheduler ticks per beat: 16ths land every 3, triplet 8ths every 4
+
 /**
  * Loops a one-bar pattern with a look-ahead scheduler.
  * Emits UI events in sync with what the listener *hears*:
  *   { type: 'count', n }        count-in beat (1..4)
- *   { type: 'step', slot, loop } a 16th-note step
+ *   { type: 'step', slot, loop } a slot of the pattern (16th, or triplet 8th in a triplet beat)
  *   { type: 'end' }             finished (finite loops only)
+ * `startTime` is beat 1 of the first loop and `sixteenth` the length of a 16th (seconds).
  */
 class Transport {
   constructor() {
@@ -182,7 +185,7 @@ class Transport {
     this.opts = { getBpm, getPattern, loops, playGroove, metronome, onEvent, countInBeats };
     this.bus = c.createGain();
     this.bus.connect(master);
-    this.step = -countInBeats * 4;
+    this.step = -countInBeats * TICKS;
     this.nextTime = c.currentTime + 0.12;
     this.sixteenth = 60 / getBpm() / 4;
     // Time of beat 1 of the first loop (valid while tempo is constant).
@@ -215,13 +218,13 @@ class Transport {
     const c = getCtx();
     const { getBpm, loops } = this.opts;
     while (this.running && !this.done && this.nextTime < c.currentTime + 0.12) {
-      if (this.step >= loops * 16) {
+      if (this.step >= loops * 4 * TICKS) {
         this.queue.push({ type: 'end', time: this.nextTime });
         this.done = true;
         break;
       }
       this._schedule(this.step, this.nextTime);
-      this.nextTime += 60 / getBpm() / 4;
+      this.nextTime += 60 / getBpm() / TICKS;
       this.step++;
     }
     this._drain();
@@ -230,20 +233,25 @@ class Transport {
   _schedule(step, t) {
     const { getPattern, playGroove, metronome, countInBeats } = this.opts;
     if (step < 0) {
-      const pos = step + countInBeats * 4;
-      if (pos % 4 === 0) {
-        const n = pos / 4 + 1;
+      const pos = step + countInBeats * TICKS;
+      if (pos % TICKS === 0) {
+        const n = pos / TICKS + 1;
         click(t, n === 1, this.bus);
         this.queue.push({ type: 'count', n, time: t });
       }
       return;
     }
-    const slot = step % 16;
-    const loop = Math.floor(step / 16);
-    if (val(metronome) && slot % 4 === 0) click(t, slot === 0, this.bus);
+    const tick = step % (4 * TICKS);
+    const loop = Math.floor(step / (4 * TICKS));
+    const beat = Math.floor(tick / TICKS);
+    const within = tick % TICKS;
+    if (val(metronome) && within === 0) click(t, beat === 0, this.bus);
+    const p = getPattern();
+    const per = p.trip?.[beat] ? 4 : 3; // ticks per slot in this beat
+    if (within % per) return;
+    const slot = beat * 4 + within / per;
     if (val(playGroove)) {
-      const p = getPattern();
-      for (const id in p) if (p[id][slot]) playInstrument(id, t, 0.9, this.bus);
+      for (const id in p) if (Array.isArray(p[id]) && id !== 'trip' && p[id][slot]) playInstrument(id, t, 0.9, this.bus);
     }
     this.queue.push({ type: 'step', slot, loop, time: t });
   }

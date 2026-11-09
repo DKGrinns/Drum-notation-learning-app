@@ -14,12 +14,18 @@
 //   count – one note is highlighted; pick its count ("2 &")
 //   pick  – hear a groove, pick the matching staff
 //
-// Grooves use the preset spec format: { instrumentId: [16th-note slots 0–15] }.
+// Grooves use the preset spec format: { instrumentId: [slots 0–15], trip?: [triplet beats], long?: true }
+// (see grooves.js). In a triplet beat, slots beat*4 + 0..2 are "1 trip let".
 
 const Q = [0, 4, 8, 12];
 const E = [0, 2, 4, 6, 8, 10, 12, 14];
 const X = [...Array(16).keys()];
 const ROCK = { hihat: E, snare: [4, 12], kick: [0, 8] };
+const T = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]; // every triplet slot
+const SH = [0, 2, 4, 6, 8, 10, 12, 14]; // in triplet beats: "1 – let" (the shuffle)
+const ALL = [0, 1, 2, 3];
+const TWO_THREE = { trip: [1, 3], snare: [0, 2, 4, 5, 6, 8, 10, 12, 13, 14] };
+const SHUFFLE = { trip: ALL, hihat: SH, snare: [4, 12], kick: [0, 8] };
 const groove = (kick, extra = {}) => ({ hihat: E, snare: [4, 12], kick, ...extra });
 
 export const PASS = { learn: 60, practice: 70, test: 80 };
@@ -100,6 +106,34 @@ export const LEVELS = [
     ],
   },
   {
+    id: 'lq', title: 'Longer notes', element: 'Half notes and dotted quarters',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet the long notes', pages: [
+        { type: 'info', title: 'The half note',
+          body: ['A **half note** is hollow and lasts **two beats**. Count **1, 2** before the next note.',
+            'A drum doesn’t really ring that long. The length tells you **how long until the next note**.'],
+          figure: { spec: { snare: [0, 8], long: true }, play: 72 } },
+        { type: 'count', spec: { snare: [0, 8, 12], long: true }, target: ['snare', 8] },
+        { type: 'info', title: 'The dotted quarter',
+          body: ['A dot adds half again. A **dotted quarter** lasts **one and a half beats**.',
+            'It’s usually followed by an 8th on the **“&” of 2**. Count **1 & 2 & 3, 4** and play on **1**, the **“&” of 2**, **3** and **4**.'],
+          figure: { spec: { snare: [0, 6, 8, 12], long: true }, play: 72 } },
+        { type: 'count', spec: { snare: [0, 6, 8, 12], long: true }, target: ['snare', 6] },
+        { type: 'pick', answer: { snare: [0, 6, 8, 12], long: true },
+          others: [{ snare: [0, 4, 8, 12], long: true }, { snare: [0, 8, 12], long: true }], bpm: 72 },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Long, short', spec: { snare: [0, 6, 8, 12], long: true }, bpm: 66 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'Twice in a bar', spec: { snare: [0, 6, 8, 14], long: true }, bpm: 70 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 72,
+        pool: [
+          { snare: [0, 6, 12], long: true },
+          { snare: [0, 8, 14], long: true },
+          { snare: [0, 4, 10], long: true },
+          { snare: [0, 6, 8], long: true },
+        ] },
+    ],
+  },
+  {
     id: 'l5', title: 'Your first groove', element: 'Hi-hat, snare and kick together',
     challenges: [
       { id: 'intro', kind: 'intro', title: 'Meet the groove', pages: [
@@ -162,7 +196,7 @@ export const LEVELS = [
     challenges: [
       { id: 'intro', kind: 'intro', title: 'Meet the dot', pages: [
         { type: 'info', title: 'A dot adds half',
-          body: ['A **dot** makes a note half as long again. A **dotted 8th** lasts three 16ths.',
+          body: ['Just like the dotted quarter, a **dotted 8th** is half as long again: it lasts **three 16ths**.',
             'Paired with a 16th, it’s counted **1 … a**: long, then short.'],
           figure: { spec: { snare: [0, 3, 4, 7, 8, 12] }, play: 64 } },
         { type: 'count', spec: { snare: [0, 3, 4, 7, 8, 12] }, target: ['snare', 7] },
@@ -176,6 +210,61 @@ export const LEVELS = [
       { id: 'practice', kind: 'drill', mode: 'practice', title: 'Wait for the “a”', spec: { snare: [0, 7, 8, 15] }, bpm: 60 },
       { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 64,
         pool: [{ snare: [0, 3, 4, 8, 11, 12] }, { snare: [0, 4, 7, 8, 11, 12] }, { snare: [3, 4, 8, 12, 15] }, { snare: [0, 3, 4, 7, 8, 12] }] },
+    ],
+  },
+  {
+    id: 'lt', title: 'Triplets', element: 'Counting 1 trip let',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet the triplet', pages: [
+        { type: 'info', title: 'Three in a beat',
+          body: ['A **triplet** fits **three** even notes into one beat. The little **3** marks them.',
+            'Count **1 trip let, 2 trip let…**'],
+          figure: { spec: { trip: ALL, snare: T }, play: 60 } },
+        { type: 'count', spec: { trip: ALL, snare: T }, target: ['snare', 5] },
+        { type: 'count', spec: { trip: ALL, snare: T }, target: ['snare', 14] },
+        { type: 'info', title: 'Two, then three',
+          body: ['The real skill is switching between **two** and **three** per beat.',
+            'Keep the beat steady. Only the way you split it changes.'],
+          figure: { spec: TWO_THREE, play: 60 } },
+        { type: 'count', spec: TWO_THREE, target: ['snare', 6] },
+        { type: 'pick', answer: TWO_THREE, others: [{ snare: E }, { trip: ALL, snare: T }], bpm: 60 },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Triplets on 2 and 4', spec: { trip: [1, 3], snare: [0, 4, 5, 6, 8, 12, 13, 14] }, bpm: 60 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'Two, then three', spec: TWO_THREE, bpm: 60 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 64,
+        pool: [
+          { trip: ALL, snare: T },
+          { trip: [0, 2], snare: [0, 1, 2, 4, 6, 8, 9, 10, 12, 14] },
+          { trip: [1, 2, 3], snare: [0, 4, 5, 6, 8, 9, 10, 12] },
+          { trip: [1, 3], snare: [0, 2, 4, 6, 8, 12, 14] },
+        ] },
+    ],
+  },
+  {
+    id: 'ls', title: 'The shuffle', element: 'Triplets with the middle left out',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet the shuffle', pages: [
+        { type: 'info', title: 'Leave out the middle',
+          body: ['Play only the **first** and **last** note of each triplet: **1 – let, 2 – let**. That long-short bounce is a **shuffle**.',
+            'It’s written as a **quarter and an 8th** under a 3.'],
+          figure: { spec: { trip: ALL, snare: SH }, play: 72 } },
+        { type: 'count', spec: { trip: ALL, snare: SH }, target: ['snare', 10] },
+        { type: 'info', title: 'The shuffle groove',
+          body: ['Put the shuffle on the **hi-hat**, with the snare on **2 and 4** and the kick on **1 and 3**. Blues and rock both use it.'],
+          figure: { spec: SHUFFLE, play: 84 } },
+        { type: 'pick', answer: SHUFFLE,
+          others: [ROCK, { trip: ALL, hihat: T, snare: [4, 12], kick: [0, 8] }], bpm: 84 },
+        { type: 'count', spec: { ...SHUFFLE, kick: [0, 6, 8] }, target: ['kick', 6] },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Shuffle on the snare', spec: { trip: ALL, snare: SH }, bpm: 72 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'Shuffle the hi-hat', spec: SHUFFLE, judge: ['hihat'], bpm: 76 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 80, judge: ['snare', 'kick'],
+        pool: [
+          { ...SHUFFLE, kick: [0, 8, 10] },
+          { ...SHUFFLE, kick: [0, 2, 8] },
+          { ...SHUFFLE, kick: [0, 6, 8, 14] },
+          { ...SHUFFLE, kick: [0, 8, 10, 14] },
+        ] },
     ],
   },
   {
@@ -199,6 +288,7 @@ export const LEVELS = [
           { snare: [0, 2, 4], tom1: [6, 8], tom2: [10], floor: [12, 14] },
           { snare: [0, 1, 2, 3], tom2: [4, 6], floor: [8, 10, 12] },
           { tom1: [0, 2], tom2: [4, 6], floor: [8, 10], snare: [12, 13, 14, 15] },
+          { snare: [0, 2, 4, 6], tom1: [8, 10], trip: [3], tom2: [12, 13], floor: [14] },
         ] },
     ],
   },
@@ -228,4 +318,3 @@ export const LEVELS = [
   },
 ];
 
-export const countLabel = (slot) => `${Math.floor(slot / 4) + 1}${['', ' e', ' &', ' a'][slot % 4]}`;

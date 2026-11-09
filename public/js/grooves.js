@@ -1,5 +1,11 @@
-// A groove is one bar of 4/4 on a 16th-note grid:
-// { name, pattern: { [instrumentId]: number[16] } }  (1 = hit, 0 = rest)
+// A groove is one bar of 4/4:
+// { name, pattern: { [instrumentId]: number[16], trip?: number[4], long?: boolean } }
+//
+// Each beat has four slots (beat * 4 + j). A straight beat uses all four as 16ths
+// ("1 e & a"). A triplet beat (pattern.trip[beat] = 1) uses slots j = 0–2 as
+// 8th-note triplets ("1 trip let") and leaves j = 3 empty.
+// pattern.long asks the staff to write long notes (half, dotted quarter, whole)
+// instead of short notes plus rests.
 import { KIT } from './kit.js';
 
 export const STEPS = 16;
@@ -7,30 +13,58 @@ export const STEPS = 16;
 const Q = [0, 4, 8, 12];
 const E = [0, 2, 4, 6, 8, 10, 12, 14];
 const S = [...Array(16).keys()];
+const T = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]; // every triplet slot
+const SH = [0, 2, 4, 6, 8, 10, 12, 14]; // shuffle: "1 – let 2 – let"
+const ALL = [0, 1, 2, 3];
 
 export const PRESETS = [
   { name: 'Quarter notes', level: 'Beginner', spec: { hihat: Q, snare: [4, 12], kick: [0, 8] } },
   { name: 'Basic rock', level: 'Beginner', spec: { hihat: E, snare: [4, 12], kick: [0, 8] } },
   { name: 'Rock with an “and”', level: 'Beginner', spec: { hihat: E, snare: [4, 12], kick: [0, 8, 10] } },
   { name: 'Four on the floor', level: 'Beginner', spec: { hihat: [2, 6, 10, 14], snare: [4, 12], kick: Q } },
+  { name: 'Shuffle', level: 'Intermediate', spec: { trip: ALL, hihat: SH, snare: [4, 12], kick: [0, 8, 10] } },
   { name: 'Ride groove', level: 'Intermediate', spec: { crash: [0], ride: [2, 4, 6, 8, 10, 12, 14], snare: [4, 12], kick: [0, 6, 8] } },
   { name: 'Sixteenth hi-hats', level: 'Intermediate', spec: { hihat: S, snare: [4, 12], kick: [0, 8, 10] } },
   { name: 'Syncopated kick', level: 'Intermediate', spec: { hihat: E, snare: [4, 12], kick: [0, 3, 6, 10] } },
+  { name: 'Triplet feel', level: 'Intermediate', spec: { trip: ALL, ride: T, snare: [4, 12], kick: [0, 2, 8, 10] } },
   { name: 'Around the toms', level: 'Intermediate', spec: { snare: [0, 1, 2, 3], tom1: [4, 5, 6, 7], tom2: [8, 9, 10, 11], floor: [12, 13, 14, 15], kick: Q } },
+  { name: 'Triplet fill', level: 'Advanced', spec: { trip: [3], hihat: [0, 2, 4, 6, 8, 10], snare: [4, 12, 13], tom1: [14], kick: [0, 8] } },
 ];
 
 export function emptyPattern() {
   return Object.fromEntries(KIT.map((k) => [k.id, Array(STEPS).fill(0)]));
 }
 
+/** Copy the rhythm settings (triplet beats, long notes) from one pattern to another. */
+export function copyMeta(from, to) {
+  if (from.trip?.some(Boolean)) to.trip = [...from.trip];
+  if (from.long) to.long = true;
+  return to;
+}
+
+/**
+ * spec: { instrumentId: slots[], trip?: beats[] (0–3), long?: true }
+ */
 export function makeGroove(name, spec = {}) {
   const pattern = emptyPattern();
-  for (const [id, slots] of Object.entries(spec)) for (const s of slots) pattern[id][s] = 1;
+  for (const [id, slots] of Object.entries(spec)) {
+    if (pattern[id]) for (const s of slots) pattern[id][s] = 1;
+  }
+  if (spec.trip?.length) {
+    pattern.trip = [0, 0, 0, 0];
+    for (const b of spec.trip) pattern.trip[b] = 1;
+  }
+  if (spec.long) pattern.long = true;
   return { name, pattern };
 }
 
+export function clonePattern(p) {
+  const out = Object.fromEntries(KIT.map((k) => [k.id, [...p[k.id]]]));
+  return copyMeta(p, out);
+}
+
 export function cloneGroove(g) {
-  return { name: g.name, pattern: Object.fromEntries(Object.entries(g.pattern).map(([k, v]) => [k, [...v]])) };
+  return { name: g.name, pattern: clonePattern(g.pattern) };
 }
 
 /** Repair anything loaded from storage so it always has every instrument and 16 steps. */
@@ -41,7 +75,48 @@ export function normalizeGroove(g) {
     const row = g.pattern[k.id];
     if (Array.isArray(row)) for (let i = 0; i < STEPS; i++) pattern[k.id][i] = row[i] ? 1 : 0;
   }
+  if (Array.isArray(g.pattern.trip) && g.pattern.trip.some(Boolean)) {
+    pattern.trip = [0, 1, 2, 3].map((b) => (g.pattern.trip[b] ? 1 : 0));
+    for (const k of KIT) for (let b = 0; b < 4; b++) if (pattern.trip[b]) pattern[k.id][b * 4 + 3] = 0;
+  }
+  if (g.pattern.long) pattern.long = true;
   return { name: String(g.name || 'My groove'), pattern };
+}
+
+// ---------- Rhythm helpers ----------
+
+export const isTrip = (p, beat) => !!p.trip?.[beat];
+
+/** Where a slot falls in the bar, in 16th notes (triplet slots land on thirds of a beat). */
+export function slotPos(p, slot) {
+  const b = slot >> 2;
+  const j = slot & 3;
+  return b * 4 + (isTrip(p, b) ? (j * 4) / 3 : j);
+}
+
+/** Slots that exist in this pattern's rhythm grid. */
+export function validSlots(p) {
+  const out = [];
+  for (let s = 0; s < STEPS; s++) if (!(isTrip(p, s >> 2) && (s & 3) === 3)) out.push(s);
+  return out;
+}
+
+/** Count for a slot: "2 &", "3 e", "4 trip". */
+export function countLabel(slot, p = {}) {
+  const b = slot >> 2;
+  const j = slot & 3;
+  const names = isTrip(p, b) ? ['', ' trip', ' let'] : ['', ' e', ' &', ' a'];
+  return `${b + 1}${names[j]}`;
+}
+
+/** Shortest distance (in 16ths) between consecutive notes of one instrument, wrapping round the bar. */
+export function nearestGap(p, id) {
+  const pos = [];
+  p[id].forEach((on, i) => on && pos.push(slotPos(p, i)));
+  if (pos.length < 2) return 4;
+  let min = 16 - pos[pos.length - 1] + pos[0];
+  for (let i = 1; i < pos.length; i++) min = Math.min(min, pos[i] - pos[i - 1]);
+  return min;
 }
 
 export function usedInstruments(g) {
@@ -52,12 +127,12 @@ export function isEmpty(g) {
   return usedInstruments(g).length === 0;
 }
 
-/** Finest subdivision used: 4 (quarters), 8 (eighths) or 16 (sixteenths). */
+/** Finest straight subdivision used: 4 (quarters), 8 (eighths) or 16 (sixteenths). Triplet beats don't count. */
 export function subdivision(g) {
   let finest = 4;
   for (const k of KIT) {
     g.pattern[k.id].forEach((on, i) => {
-      if (!on) return;
+      if (!on || isTrip(g.pattern, i >> 2)) return;
       if (i % 2) finest = 16;
       else if (i % 4 && finest < 8) finest = 8;
     });
@@ -66,7 +141,10 @@ export function subdivision(g) {
 }
 
 export function subdivisionLabel(g) {
-  return { 4: 'Quarter notes', 8: '8th notes', 16: '16th notes' }[subdivision(g)];
+  const trips = g.pattern.trip?.filter(Boolean).length || 0;
+  if (trips === 4) return 'Triplets';
+  const base = { 4: 'Quarter notes', 8: '8th notes', 16: '16th notes' }[subdivision(g)];
+  return trips ? `${base} + triplets` : base;
 }
 
 // ---------- Random grooves (sight-reading and ear training) ----------
@@ -86,7 +164,7 @@ function sample(arr, n) {
 
 /** Stable string for comparing two patterns. */
 export function patternKey(p) {
-  return KIT.map((k) => p[k.id].join('')).join('|');
+  return `${KIT.map((k) => p[k.id].join('')).join('|')}|${(p.trip || []).join('')}|${p.long ? 1 : 0}`;
 }
 
 /**

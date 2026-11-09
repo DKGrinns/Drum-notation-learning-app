@@ -1,11 +1,11 @@
 // Learn: a level path. Each level introduces one element, then drills it.
 import { h, svgIcon, ICONS, toast } from '../ui.js';
 import { KIT, byId } from '../kit.js';
-import { makeGroove, subdivision, emptyPattern } from '../grooves.js';
+import { makeGroove, subdivision, emptyPattern, copyMeta, slotPos, nearestGap, validSlots, countLabel, isTrip } from '../grooves.js';
 import { renderPattern, renderSingle } from '../notation.js';
 import { transport, playInstrument, audioTimeAt } from '../audio.js';
 import { store } from '../store.js';
-import { LEVELS, PASS, countLabel } from '../curriculum.js';
+import { LEVELS, PASS } from '../curriculum.js';
 
 export const title = 'Learn';
 
@@ -174,7 +174,6 @@ const KIND_ICONS = {
 // ---------- Shared bits ----------
 
 const spec2pattern = (spec) => makeGroove('', spec).pattern;
-const resOf = (pattern) => ({ 4: 4, 8: 2, 16: 1 })[subdivision({ pattern })];
 
 function richText(str) {
   return str.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? h('b', null, part) : part));
@@ -294,7 +293,7 @@ function runIntro(li, ci) {
           }
         } else {
           const pattern = spec2pattern(p.figure.spec);
-          staff = renderPattern(fig, { pattern, res: resOf(pattern) });
+          staff = renderPattern(fig, { pattern });
         }
       };
       const playBtn = p.figure.play
@@ -350,18 +349,18 @@ function runIntro(li, ci) {
       }, byId[id].name)));
     } else if (p.type === 'count') {
       const pattern = spec2pattern(p.spec);
-      const res = resOf(pattern);
       const [tid, tslot] = p.target;
       const colors = {};
       for (const kk of KIT) pattern[kk.id].forEach((on, s) => on && (colors[`${kk.id}:${s}`] = 'var(--ink3)'));
       colors[`${tid}:${tslot}`] = 'var(--blue)';
       prompt = h('span', null, 'What’s the count for the ', h('b', null, 'blue'), ' note?');
-      redraw = () => renderPattern(fig, { pattern, res, colors });
+      redraw = () => renderPattern(fig, { pattern, colors });
       // Choices: the right count plus three nearby counts on the same grid.
-      const step = Math.min(res, 4);
-      const near = [];
-      for (let s = 0; s < 16; s += step) if (s !== tslot) near.push(s);
-      near.sort((a, b) => Math.abs(a - tslot) - Math.abs(b - tslot));
+      // Straight beats offer counts on the pattern's own grid (8ths or 16ths); triplet beats offer all three.
+      const step = { 4: 4, 8: 2, 16: 1 }[subdivision({ pattern })];
+      const dist = (a) => Math.abs(slotPos(pattern, a) - slotPos(pattern, tslot));
+      const near = validSlots(pattern).filter((s) => s !== tslot && (isTrip(pattern, s >> 2) || (s & 3) % step === 0));
+      near.sort((a, b) => dist(a) - dist(b));
       const opts = shuffle([tslot, ...shuffle(near.slice(0, 5)).slice(0, 3)]).sort((a, b) => a - b);
       opts.forEach((s, idx) => answers.append(h('button', {
         type: 'button', class: 'answer',
@@ -370,15 +369,14 @@ function runIntro(li, ci) {
           playInstrument(tid);
           colors[`${tid}:${tslot}`] = s === tslot ? 'var(--green)' : 'var(--red)';
           redraw();
-          answered(s === tslot, `It’s on “${countLabel(tslot)}”.`);
+          answered(s === tslot, `It’s on “${countLabel(tslot, pattern)}”.`);
         },
-      }, countLabel(s))));
+      }, countLabel(s, pattern))));
     } else if (p.type === 'pick') {
       prompt = 'Which one do you hear?';
       const pats = shuffle([p.answer, ...p.others]).map(spec2pattern);
       const answerKey = JSON.stringify(spec2pattern(p.answer));
       const right = pats.findIndex((pt) => JSON.stringify(pt) === answerKey);
-      const res = Math.min(...pats.map(resOf));
       let staffs = [];
       let picked = null;
       const choices = h('div', { class: 'choices' });
@@ -402,7 +400,7 @@ function runIntro(li, ci) {
               answered(idx === right, idx === right ? 'Tap any staff to hear it.' : `It was ${'ABC'[right]}. Tap each one to hear the difference.`);
             },
           }, h('span', { class: 'choice-letter' }, 'ABC'[idx]), host));
-          return renderPattern(host, { pattern: pt, res, s: 8.5 });
+          return renderPattern(host, { pattern: pt, s: 8.5 });
         });
       };
       const listen = playButton('Play the groove', (done) => done && playPattern(pats[right], p.bpm, () => staffs, done));
@@ -489,7 +487,7 @@ function runDrill(li, ci) {
     renderStaff();
   };
   const renderStaff = () => {
-    D.staff = renderPattern(staffHost, { pattern: D.pattern, res: resOf(D.pattern), colors: D.colors });
+    D.staff = renderPattern(staffHost, { pattern: D.pattern, colors: D.colors });
   };
   const renderPads = () => {
     pads.replaceChildren(...D.judge.map((k, i) => h('button', {
@@ -538,20 +536,11 @@ function runDrill(li, ci) {
     pad.addEventListener('animationend', () => pad.classList.remove('hit', 'good', 'ok', 'bad'), { once: true });
   }
 
-  function nearestGap(id) {
-    const slots = [];
-    D.pattern[id].forEach((on, i) => on && slots.push(i));
-    if (slots.length < 2) return 4;
-    let min = 16 - slots[slots.length - 1] + slots[0];
-    for (let i = 1; i < slots.length; i++) min = Math.min(min, slots[i] - slots[i - 1]);
-    return min;
-  }
-
   function hit(id, ts, pad) {
     playInstrument(id);
     if (!active()) return flash(pad);
     const t = audioTimeAt(ts) - store.get('play.offset', 0) / 1000;
-    const win = Math.min(0.15, D.sixteenth * 0.5 * nearestGap(id));
+    const win = Math.min(0.15, D.sixteenth * 0.5 * nearestGap(D.pattern, id));
     let bestE = null;
     let bestD = Infinity;
     for (const e of D.expected) {
@@ -585,7 +574,7 @@ function runDrill(li, ci) {
     const loops = 2;
     // Learn mode plays everything; otherwise only the parts you aren't tapping.
     const heard = c.mode === 'learn' ? D.pattern : (() => {
-      const p = emptyPattern();
+      const p = copyMeta(D.pattern, emptyPattern());
       for (const k of KIT) if (!isJudged(k.id)) p[k.id] = D.pattern[k.id];
       return p;
     })();
@@ -612,7 +601,7 @@ function runDrill(li, ci) {
     for (let loop = 0; loop < loops; loop++) {
       for (let slot = 0; slot < 16; slot++) {
         for (const k of D.judge) {
-          if (D.pattern[k.id][slot]) D.expected.push({ id: k.id, slot, time: transport.startTime + (loop * 16 + slot) * D.sixteenth, hit: false, d: 0 });
+          if (D.pattern[k.id][slot]) D.expected.push({ id: k.id, slot, time: transport.startTime + (loop * 16 + slotPos(D.pattern, slot)) * D.sixteenth, hit: false, d: 0 });
         }
       }
     }

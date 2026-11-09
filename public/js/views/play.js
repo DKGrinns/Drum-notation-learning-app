@@ -1,7 +1,7 @@
 // Play: tap along to written grooves and get per-note timing feedback.
 import { h, stepper, toggle, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
 import { KIT } from '../kit.js';
-import { PRESETS, LEVEL_NAMES, makeGroove, randomGroove, normalizeGroove, usedInstruments, isEmpty, subdivisionLabel } from '../grooves.js';
+import { PRESETS, LEVEL_NAMES, makeGroove, randomGroove, normalizeGroove, usedInstruments, isEmpty, subdivisionLabel, slotPos, nearestGap } from '../grooves.js';
 import { renderPattern } from '../notation.js';
 import { transport, playInstrument, audioTimeAt } from '../audio.js';
 import { store } from '../store.js';
@@ -176,7 +176,7 @@ function openPicker() {
 }
 
 function renderStaff() {
-  staff = renderPattern(els.staffHost, { pattern: groove().pattern, res: 1, colors: S.colors });
+  staff = renderPattern(els.staffHost, { pattern: groove().pattern, colors: S.colors });
 }
 
 function renderPads() {
@@ -225,7 +225,7 @@ function hit(id, ts, pad) {
     return;
   }
   const t = audioTimeAt(ts) - S.offset / 1000;
-  const windowSec = Math.min(0.15, S.sixteenth * 0.5 * nearestGap(id));
+  const windowSec = Math.min(0.15, S.sixteenth * 0.5 * nearestGap(groove().pattern, id));
   let best = null;
   let bestD = Infinity;
   for (const e of S.expected) {
@@ -244,16 +244,6 @@ function hit(id, ts, pad) {
     S.extras++;
     flash(pad, 'bad');
   }
-}
-
-/** Smallest distance (in 16ths) between consecutive notes of one instrument; keeps hit windows from overlapping. */
-function nearestGap(id) {
-  const slots = [];
-  groove().pattern[id].forEach((on, i) => on && slots.push(i));
-  if (slots.length < 2) return 4;
-  let min = 16 - slots[slots.length - 1] + slots[0];
-  for (let i = 1; i < slots.length; i++) min = Math.min(min, slots[i] - slots[i - 1]);
-  return min;
 }
 
 function start() {
@@ -284,7 +274,7 @@ function start() {
     for (let slot = 0; slot < 16; slot++) {
       for (const k of KIT) {
         if (g.pattern[k.id][slot]) {
-          S.expected.push({ id: k.id, slot, loop, time: transport.startTime + (loop * 16 + slot) * S.sixteenth, hit: false, d: 0 });
+          S.expected.push({ id: k.id, slot, loop, time: transport.startTime + (loop * 16 + slotPos(g.pattern, slot)) * S.sixteenth, hit: false, d: 0 });
         }
       }
     }

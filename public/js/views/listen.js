@@ -1,7 +1,7 @@
 // Listen: hear a groove, then pick the notation that matches it.
 // The choices differ by only a note or two, so you have to really read them.
 import { h, segmented, svgIcon, ICONS } from '../ui.js';
-import { LEVEL_NAMES, randomGroove, lookAlikes, subdivision } from '../grooves.js';
+import { LEVEL_NAMES, randomGroove, lookAlikes } from '../grooves.js';
 import { renderPattern } from '../notation.js';
 import { transport } from '../audio.js';
 import { store } from '../store.js';
@@ -62,7 +62,7 @@ function newRound(autoplay) {
 function newQuestion(autoplay) {
   const answer = randomGroove(S.level);
   const { options, answer: idx } = lookAlikes(answer, 3, S.level);
-  S.round.q = { options, answer: idx, picked: null, res: options.some((o) => subdivision(o) === 16) ? 1 : 2 };
+  S.round.q = { options, answer: idx, picked: null };
   renderQuestion();
   if (autoplay) play('q');
 }
@@ -106,7 +106,7 @@ function drawChoices() {
       onClick: () => choose(i),
     }, h('span', { class: 'choice-letter' }, LETTERS[i]), host);
     els.choices.append(btn);
-    return renderPattern(host, { pattern: g.pattern, res: q.res, s: 8.5 });
+    return renderPattern(host, { pattern: g.pattern, s: 8.5 });
   });
 }
 

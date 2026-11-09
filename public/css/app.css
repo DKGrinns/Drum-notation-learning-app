@@ -528,3 +528,15 @@ main { padding: 4px 16px 24px; }
 .results-title.fail { color: var(--ink); }
 .results-sub .stars { font-size: 15px; margin-right: 4px; vertical-align: -1px; }
 .listen-btn:disabled { opacity: 0.4; }
+.notation .tuplet { font-family: var(--font); font-weight: 700; font-style: italic; fill: currentColor; }
+
+/* Build: triplet beats and long notes */
+.grid .count.trip { font-size: 10px; letter-spacing: -0.02em; }
+.beat-toggles { display: flex; gap: 6px; }
+.beat-toggle {
+  width: 34px; height: 30px; border: 0; border-radius: 8px;
+  background: var(--fill); color: var(--ink); font-size: 15px; font-weight: 600;
+  font-variant-numeric: tabular-nums; transition: background 0.12s, transform 0.08s;
+}
+.beat-toggle:active { transform: scale(0.92); }
+.beat-toggle.on { background: var(--blue); color: #fff; }
