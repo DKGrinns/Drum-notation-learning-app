@@ -380,7 +380,7 @@ function finish() {
       stat(late, 'Late', 'off'),
       stat(missed, 'Missed', 'miss')),
     tendency && h('p', { class: 'tendency' }, tendency),
-    S.extras ? h('p', { class: 'tendency' }, `${S.extras} extra tap${S.extras === 1 ? '' : 's'} that didn’t match a note.`) : null,
+    S.extras ? h('p', { class: 'tendency' }, `${S.extras} extra tap${S.extras === 1 ? '' : 's'} that didn’t match a note.`) : '',
     h('div', { class: 'legend' },
       h('span', { class: 'on' }, 'On time'),
       h('span', { class: 'off' }, 'Early / late'),

@@ -1,11 +1,12 @@
 import { transport, unlockAudio } from './audio.js';
 import { store } from './store.js';
+import * as learn from './views/learn.js';
 import * as build from './views/build.js';
 import * as quiz from './views/quiz.js';
 import * as listen from './views/listen.js';
 import * as play from './views/play.js';
 
-const VIEWS = { build, quiz, listen, play };
+const VIEWS = { learn, build, quiz, listen, play };
 
 const viewEl = document.getElementById('view');
 const titleEl = document.getElementById('title');
@@ -21,12 +22,17 @@ const nav = {
       btn.onclick = cfg?.onClick || null;
     }
   },
+  /** Change the large title (for views with their own screens). */
+  title(text) {
+    titleEl.textContent = text;
+    document.title = `${text} · Drum Reader`;
+  },
 };
 
 let current = null;
 
 function show(name) {
-  if (!VIEWS[name]) name = 'build';
+  if (!VIEWS[name]) name = 'learn';
   transport.stop();
   current?.unmount?.();
   viewEl.replaceChildren();
@@ -55,4 +61,4 @@ const unlock = () => {
 window.addEventListener('pointerdown', unlock, true);
 window.addEventListener('keydown', unlock, true);
 
-show(store.get('tab', 'build'));
+show(store.get('tab', 'learn'));

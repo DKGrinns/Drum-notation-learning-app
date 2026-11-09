@@ -14,6 +14,7 @@ Open http://localhost:5173. To try it on your phone (same Wi-Fi), run `HOST=0.0.
 
 | Tab | What it teaches |
 | --- | --- |
+| **Learn** | A 10-level path, from quarter notes through rests, 8ths, grooves, 16ths, gallops, dotted notes and dotted rests, toms and fills, to ride and crash. Each level has an **intro** (short explanations plus quick checks), a **Learn** drill (tap along while you hear the part), a **Practice** drill (click only), and a **Test** (a new pattern from a pool; score 80% to unlock the next level). Up to 3 stars per challenge. Edit the path in `js/curriculum.js`. |
 | **Build** | Tap a step grid and watch it turn into real notation. The grid columns line up with the notes on the staff, with counts (`1 e & a`) above. Includes presets, tempo, metronome, and 8th/16th grids. |
 | **Quiz** | *Name the note* (see a note, pick the drum) or *Place the note* (see a drum, tap its spot on the staff). Three levels; notes you miss come up more often. |
 | **Listen** | Hear a groove, then pick which of three look-alike staffs matches it. After answering, tap any choice to hear how it differs. Beginner / Intermediate / Advanced. |
@@ -25,12 +26,13 @@ Open http://localhost:5173. To try it on your phone (same Wi-Fi), run `HOST=0.0.
 public/
   index.html          app shell + tab bar
   css/app.css         iOS-style design (light + dark)
+  js/curriculum.js    levels, intros, drills (the learning path)
   js/kit.js           drum kit + staff positions (Weinberg/PAS key)
   js/grooves.js       groove model, presets, random grooves + look-alikes
   js/notation.js      SVG notation renderer (two voices, beams, rests)
   js/audio.js         synthesized drums + look-ahead transport + tap timing
   js/ui.js            segmented control, stepper, switch, sheet, toast
-  js/views/*.js       Build, Quiz, Listen, Play
+  js/views/*.js       Learn, Build, Quiz, Listen, Play
 serve.mjs             zero-dependency dev server
 ```
 

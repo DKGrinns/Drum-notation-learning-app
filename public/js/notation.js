@@ -75,7 +75,8 @@ function drawHead(g, kind, x, y, s, color, extra = {}) {
   });
 }
 
-function drawRest(g, dur, x, cy, s) {
+function drawRest(g, dur, x, cy, s, dotted = false) {
+  if (dotted) el(g, 'circle', { cx: x + 0.95 * s, cy: cy - 0.5 * s, r: s * 0.17, fill: 'currentColor' });
   const stroke = { fill: 'none', stroke: 'currentColor', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
   if (dur === 4) {
     el(g, 'path', {
@@ -137,10 +138,7 @@ function drawVoice(c, kit, beat, up) {
   const first = ons[0].j;
   if (first === 1) drawRest(g, 1, xOf(beat * 4), restY, s);
   if (first === 2) drawRest(g, 2, xOf(beat * 4), restY, s);
-  if (first === 3) {
-    drawRest(g, 2, xOf(beat * 4), restY, s);
-    drawRest(g, 1, xOf(beat * 4 + 2), restY, s);
-  }
+  if (first === 3) drawRest(g, 2, xOf(beat * 4) + s * 0.3, restY, s, true); // dotted 8th rest
 
   ons.forEach((o, i) => {
     o.dur = (i < ons.length - 1 ? ons[i + 1].j : 4) - o.j; // in 16ths
