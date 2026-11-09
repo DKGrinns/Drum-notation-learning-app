@@ -73,7 +73,7 @@ export function mount(root, nav) {
         }))),
     resSeg,
     h('div', { class: 'list' },
-      row(['Triplets', h('span', { class: 'row-sub' }, 'Split a beat into three')],
+      row(['Triplets', h('span', { class: 'row-sub' }, 'Three per beat')],
         h('div', { class: 'beat-toggles', role: 'group', 'aria-label': 'Triplet beats' }, beatBtns)),
       row(['Long notes', h('span', { class: 'row-sub' }, 'Write halves and dotted quarters')], longSwitch),
       row('Metronome', toggle(S.click, (v) => {
@@ -125,7 +125,7 @@ function renderAll() {
 }
 
 function renderStaff() {
-  staff = renderPattern(els.staffHost, { pattern: S.groove.pattern, layout: 'grid', res: S.res });
+  staff = renderPattern(els.staffHost, { pattern: S.groove.pattern, layout: 'grid', res: S.res, fit: false });
   if (S.playing && S.slot != null) staff.setPlayhead(S.slot);
 }
 

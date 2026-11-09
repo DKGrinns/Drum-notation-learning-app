@@ -82,7 +82,7 @@ function setScreen(t, back) {
   cleanup();
   root.replaceChildren();
   nav.set(back ? { left: { label: `‹ ${back.label}`, onClick: back.onClick } } : {});
-  nav.title?.(t);
+  nav.title?.(t, { compact: !!back });
   window.scrollTo(0, 0);
 }
 
@@ -95,10 +95,13 @@ function showPath() {
 
   root.append(
     h('section', { class: 'card path-head' },
-      h('div', { class: 'path-ring', style: { '--p': doneCount / LEVELS.length } }, h('span', null, doneCount)),
-      h('div', null,
-        h('div', { class: 'card-title' }, current === -1 ? 'All levels complete!' : `Level ${current + 1}: ${LEVELS[current].title}`),
-        h('div', { class: 'card-sub' }, `${doneCount} of ${LEVELS.length} levels · ${totalStars}/${maxStars} ★`)),
+      h('div', { class: 'path-ring', style: { '--p': doneCount / LEVELS.length }, 'aria-label': `${doneCount} of ${LEVELS.length} levels done` },
+        h('span', null, current === -1 ? svgIcon(ICONS.check) : current + 1)),
+      h('div', { class: 'path-info' },
+        h('div', { class: 'eyebrow' }, current === -1 ? 'Path complete' : `Up next · Level ${current + 1}`),
+        h('div', { class: 'path-title' }, current === -1 ? 'Every level done!' : LEVELS[current].title),
+        h('div', { class: 'path-meta' }, `${doneCount} of ${LEVELS.length} levels`, h('span', { class: 'dot-sep' }, '·'),
+          h('span', { class: 'star-count' }, '★'), ` ${totalStars} of ${maxStars}`)),
       current === -1 ? null : h('button', { type: 'button', class: 'btn-primary path-go', onClick: () => continueFrom(current) }, 'Continue')),
     h('div', { class: 'list levels' },
       LEVELS.map((lv, li) => {
@@ -112,8 +115,10 @@ function showPath() {
         },
         h('span', { class: `level-badge${done ? ' done' : ''}` }, done ? svgIcon(ICONS.check) : li + 1),
         h('span', { class: 'row-main' }, h('span', null, lv.title), h('span', { class: 'row-sub' }, lv.element)),
-        locked ? svgIcon(ICONS.lock, 'icon lock') : h('span', { class: 'row-value' }, `${n}/${lv.challenges.length}`),
-        svgIcon(ICONS.chevron, 'icon chevron'));
+        locked ? svgIcon(ICONS.lock, 'icon lock')
+          : h('span', { class: 'pips', 'aria-label': `${n} of ${lv.challenges.length} done` },
+            lv.challenges.map((_, ci) => h('span', { class: isDone(li, ci) ? 'on' : '' }))),
+        locked ? null : svgIcon(ICONS.chevron, 'icon chevron'));
       })),
     h('p', { class: 'footnote' }, 'Each level introduces one new idea, then drills it. Pass the level test to unlock the next one.'),
   );
@@ -130,6 +135,7 @@ function showLevel(li) {
   setScreen(`Level ${li + 1}`, { label: 'Levels', onClick: showPath });
   root.append(
     h('div', { class: 'level-head' },
+      h('div', { class: 'eyebrow' }, `Level ${li + 1} of ${LEVELS.length}`),
       h('div', { class: 'level-title' }, lv.title),
       h('div', { class: 'level-sub' }, lv.element)),
     h('div', { class: 'list' },
@@ -145,7 +151,7 @@ function showLevel(li) {
         h('span', { class: `kind-icon ${c.kind === 'intro' ? 'intro' : c.mode}` }, svgIcon(KIND_ICONS[c.kind === 'intro' ? 'intro' : c.mode])),
         h('span', { class: 'row-main' }, h('span', null, c.title), h('span', { class: 'row-sub' }, sub)),
         locked ? svgIcon(ICONS.lock, 'icon lock') : starRow(stars(li, ci)),
-        svgIcon(ICONS.chevron, 'icon chevron'));
+        locked ? null : svgIcon(ICONS.chevron, 'icon chevron'));
       })),
     h('p', { class: 'footnote' }, 'Stars: pass for one, beat it by 15 points for two, 95% or better for three.'),
   );
@@ -473,8 +479,7 @@ function runDrill(li, ci) {
       h('span', { class: 'drill-meta' }, `${c.bpm} BPM · pass ${pass}%${best != null ? ` · best ${best}%` : ''}`)),
     h('p', { class: 'drill-help' }, help),
     h('section', { class: 'card score' }, h('div', { class: 'staff-wrap' }, staffHost, overlay), results),
-    hearBtn || '',
-    h('div', { class: 'drill-actions' }, startBtn, nextBtn),
+    h('div', { class: `drill-actions${hearBtn ? '' : ' solo'}` }, hearBtn, startBtn, nextBtn),
     pads,
   );
 

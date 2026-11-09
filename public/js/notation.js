@@ -8,7 +8,7 @@ import { KIT } from './kit.js';
 
 /** Horizontal gutters shared with the step grid so columns line up exactly. */
 export const LEFT = 56;
-export const RIGHT = 12;
+export const RIGHT = 20;
 
 const NS = 'http://www.w3.org/2000/svg';
 const UP_KIT = KIT.filter((k) => !k.foot);
@@ -114,16 +114,19 @@ function drawRest(g, dur, x, cy, s, dotted = false) {
   }
 }
 
-function drawFlags(g, n, sx, endY, up, s) {
+function drawFlags(g, n, sx, endY, up, s, color = 'currentColor') {
   const sg = up ? 1 : -1;
   for (let i = 0; i < n; i++) {
     const y = endY + sg * i * 0.85 * s;
     el(g, 'path', {
       d: `M${sx} ${y} c ${0.1 * s} ${sg * 0.9 * s} ${1.1 * s} ${sg * 1.1 * s} ${0.85 * s} ${sg * 2.4 * s}`,
-      fill: 'none', stroke: 'currentColor', 'stroke-width': s * 0.22, 'stroke-linecap': 'round',
+      fill: 'none', stroke: color, 'stroke-width': s * 0.22, 'stroke-linecap': 'round',
     });
   }
 }
+
+/** Notes shown in gray (parts you don't play) get gray stems, flags and beams too. */
+const MUTED = 'var(--ink3)';
 
 // ---------- Rhythm analysis ----------
 //
@@ -284,9 +287,9 @@ function drawVoice(c, beats, up) {
   const restY = up ? yOf(6) : yOf(-1.5);
   const th = 0.48 * s;
   const gap = 0.3 * s;
-  const beam = (x1, x2, y0, level) => {
+  const beam = (x1, x2, y0, level, color = 'currentColor') => {
     const y = up ? y0 + level * (th + gap) : y0 - th - level * (th + gap);
-    el(g, 'rect', { x: Math.min(x1, x2) - s * 0.065, y, width: Math.abs(x2 - x1) + s * 0.13, height: th, fill: 'currentColor' });
+    el(g, 'rect', { x: Math.min(x1, x2) - s * 0.065, y, width: Math.abs(x2 - x1) + s * 0.13, height: th, fill: color });
   };
 
   for (const beat of beats) {
@@ -310,6 +313,7 @@ function drawVoice(c, beats, up) {
       o.base = up ? Math.max(...ys) : Math.min(...ys);
       o.sx = up ? o.x + hw : o.x - hw;
       o.beamY = null;
+      o.ink = o.insts.every((k) => colors[`${k.id}:${o.slot}`] === MUTED) ? MUTED : 'currentColor';
     }
 
     // Beam runs of consecutive flagged notes; a lone one gets flags instead.
@@ -336,28 +340,29 @@ function drawVoice(c, beats, up) {
         drawHead(g, k.head, o.x, y, s, colors[`${k.id}:${o.slot}`] || 'currentColor', {}, o.hollow ? (o.long === 16 ? 'whole' : 'half') : null);
         if (o.dot) {
           const onLine = k.step % 2 === 0;
-          el(g, 'circle', { cx: o.x + hw + 0.5 * s, cy: onLine ? y - s / 2 : y, r: s * 0.17, fill: 'currentColor' });
+          el(g, 'circle', { cx: o.x + hw + 0.5 * s, cy: onLine ? y - s / 2 : y, r: s * 0.17, fill: o.ink });
         }
       }
       if (!o.stem) continue;
       const end = o.beamY ?? o.tip + sg * stemLen;
-      el(g, 'line', { x1: o.sx, x2: o.sx, y1: o.base, y2: end, stroke: 'currentColor', 'stroke-width': s * 0.13 });
-      if (o.beamY == null && o.beams) drawFlags(g, o.beams, o.sx, end, up, s);
+      el(g, 'line', { x1: o.sx, x2: o.sx, y1: o.base, y2: end, stroke: o.ink, 'stroke-width': s * 0.13 });
+      if (o.beamY == null && o.beams) drawFlags(g, o.beams, o.sx, end, up, s, o.ink);
     }
 
     for (const grp of groups) {
       if (grp.length < 2) continue;
       const y0 = grp[0].beamY;
-      beam(grp[0].sx, grp[grp.length - 1].sx, y0, 0);
+      const ink = grp.every((o) => o.ink === MUTED) ? MUTED : 'currentColor';
+      beam(grp[0].sx, grp[grp.length - 1].sx, y0, 0, ink);
       grp.forEach((o, i) => {
         if (o.beams !== 2) return;
         const prev = grp[i - 1];
         const next = grp[i + 1];
-        if (next && next.beams === 2) beam(o.sx, next.sx, y0, 1);
+        if (next && next.beams === 2) beam(o.sx, next.sx, y0, 1, ink);
         else if (!(prev && prev.beams === 2)) {
           const stub = s * 1.0;
-          if (i === grp.length - 1) beam(o.sx - stub, o.sx, y0, 1);
-          else beam(o.sx, o.sx + stub, y0, 1);
+          if (i === grp.length - 1) beam(o.sx - stub, o.sx, y0, 1, ink);
+          else beam(o.sx, o.sx + stub, y0, 1, ink);
         }
       });
     }
@@ -375,7 +380,7 @@ function drawVoice(c, beats, up) {
       if (!oneBeam) {
         const hook = -sg * s * 0.55;
         const gapW = s * 0.7;
-        const stroke = { fill: 'none', stroke: 'currentColor', 'stroke-width': s * 0.11 };
+        const stroke = { fill: 'none', stroke: notes.every((o) => o.ink === MUTED) ? MUTED : 'currentColor', 'stroke-width': s * 0.11 };
         el(g, 'path', { d: `M${bx1} ${edge + hook} V${edge} H${mid - gapW}`, ...stroke });
         el(g, 'path', { d: `M${mid + gapW} ${edge} H${bx2} V${edge + hook}`, ...stroke });
       }
@@ -384,6 +389,7 @@ function drawVoice(c, beats, up) {
         'text-anchor': 'middle', 'dominant-baseline': 'central',
       });
       t.textContent = '3';
+      if (notes.every((o) => o.ink === MUTED)) t.style.fill = MUTED;
     }
   }
 }
@@ -395,8 +401,9 @@ function drawVoice(c, beats, up) {
  *   layout: 'natural' spaces notes by length (default); 'grid' spaces them evenly
  *           to line up with the Build step grid (res: 1 = 16th columns, 2 = 8th columns)
  *   colors: { 'snare:4': 'var(--green)' } to tint individual noteheads
+ *   fit: trim empty space above and below the music (keeping a sensible minimum)
  */
-export function renderPattern(host, { pattern, layout = 'natural', res = 1, colors = {}, s }) {
+export function renderPattern(host, { pattern, layout = 'natural', res = 1, colors = {}, s, fit = true }) {
   const width = Math.max(260, Math.floor(host.clientWidth) || 320);
   s = s || Math.max(9, Math.min(11, width / 40)); // staff space in px; grows a little on wider screens
   const { yOf, height } = geometry(s);
@@ -416,10 +423,28 @@ export function renderPattern(host, { pattern, layout = 'natural', res = 1, colo
   drawTimeSig(g, 8 + s * 2.9, yOf, s);
   el(g, 'line', { x1: width - 8, x2: width - 8, y1: yOf(8), y2: yOf(0), class: 'barline' });
   el(g, 'rect', { x: width - 5.5, y: yOf(8), width: 3, height: yOf(0) - yOf(8), fill: 'currentColor' });
+  // End repeat: the bar loops.
+  for (const st of [5, 3]) el(g, 'circle', { cx: width - 8 - s * 0.6, cy: yOf(st), r: s * 0.19, fill: 'currentColor' });
 
   const c = { g, s, yOf, L, colors };
   drawVoice(c, upBeats, true);
   if (downBeats) drawVoice(c, downBeats, false);
+
+  if (fit) {
+    let box = null;
+    try {
+      box = g.getBBox(); // only works once the svg is in the page
+    } catch { /* not rendered */ }
+    if (box?.width) {
+      const pad = s * 0.9;
+      const y0 = Math.min(box.y - pad, yOf(8) - s * 3.4);
+      const y1 = Math.max(box.y + box.height + pad, yOf(0) + s * 3.4);
+      svg.setAttribute('viewBox', `0 ${y0} ${width} ${y1 - y0}`);
+      svg.setAttribute('height', y1 - y0);
+      playhead.setAttribute('y', y0 + 2);
+      playhead.setAttribute('height', y1 - y0 - 4);
+    }
+  }
 
   return {
     svg,

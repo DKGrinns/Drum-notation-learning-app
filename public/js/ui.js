@@ -5,7 +5,12 @@ export function h(tag, props, ...kids) {
   for (const [k, v] of Object.entries(props || {})) {
     if (v == null || v === false) continue;
     if (k === 'class') e.className = v;
-    else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else if (k === 'style' && typeof v === 'object') {
+      for (const [p, pv] of Object.entries(v)) {
+        if (p.startsWith('--')) e.style.setProperty(p, pv); // custom properties need setProperty
+        else e.style[p] = pv;
+      }
+    }
     else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2).toLowerCase(), v);
     else if (v === true) e.setAttribute(k, '');
     else e.setAttribute(k, v);

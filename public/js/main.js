@@ -22,12 +22,36 @@ const nav = {
       btn.onclick = cfg?.onClick || null;
     }
   },
-  /** Change the large title (for views with their own screens). */
-  title(text) {
+  /**
+   * Change the title (for views with their own screens). compact: a small title
+   * centered in the bar instead of the large title, like a pushed iOS screen.
+   */
+  title(text, { compact = false } = {}) {
     titleEl.textContent = text;
+    navTitleEl.textContent = text;
+    document.body.classList.toggle('compact', compact);
     document.title = `${text} · Drum Reader`;
+    fitNavTitle();
+    onScroll();
   },
 };
+const navTitleEl = document.getElementById('navTitle');
+
+/** Like iOS: once the large title scrolls away, its small version fades into the bar. */
+function onScroll() {
+  const past = window.scrollY > titleEl.offsetTop + titleEl.offsetHeight - 50;
+  document.body.classList.toggle('scrolled', window.scrollY > 2);
+  document.body.classList.toggle('title-hidden', past);
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+
+/** Keep the centered title clear of the bar buttons (it truncates with … instead). */
+function fitNavTitle() {
+  const bar = navTitleEl.parentElement;
+  const side = Math.max(leftBtn.hidden ? 0 : leftBtn.offsetWidth, rightBtn.hidden ? 0 : rightBtn.offsetWidth);
+  navTitleEl.style.maxWidth = `${Math.max(60, bar.clientWidth - 2 * (side + 10))}px`;
+}
+window.addEventListener('resize', fitNavTitle);
 
 let current = null;
 
@@ -38,8 +62,7 @@ function show(name) {
   viewEl.replaceChildren();
   nav.set();
   current = VIEWS[name];
-  titleEl.textContent = current.title;
-  document.title = `${current.title} · Drum Reader`;
+  nav.title(current.title);
   current.mount(viewEl, nav);
   for (const t of document.querySelectorAll('.tab')) {
     const on = t.dataset.tab === name;
