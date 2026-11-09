@@ -2,9 +2,10 @@ import { transport, unlockAudio } from './audio.js';
 import { store } from './store.js';
 import * as build from './views/build.js';
 import * as quiz from './views/quiz.js';
+import * as listen from './views/listen.js';
 import * as play from './views/play.js';
 
-const VIEWS = { build, quiz, play };
+const VIEWS = { build, quiz, listen, play };
 
 const viewEl = document.getElementById('view');
 const titleEl = document.getElementById('title');

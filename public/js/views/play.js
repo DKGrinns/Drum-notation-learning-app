@@ -1,7 +1,7 @@
 // Play: tap along to written grooves and get per-note timing feedback.
 import { h, stepper, toggle, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
 import { KIT } from '../kit.js';
-import { PRESETS, makeGroove, usedInstruments, isEmpty, subdivisionLabel } from '../grooves.js';
+import { PRESETS, LEVEL_NAMES, makeGroove, randomGroove, normalizeGroove, usedInstruments, isEmpty, subdivisionLabel } from '../grooves.js';
 import { renderPattern } from '../notation.js';
 import { transport, playInstrument, audioTimeAt } from '../audio.js';
 import { store } from '../store.js';
@@ -16,10 +16,19 @@ let els = null;
 let staff = null;
 let ro = null;
 let onKey = null;
+let navRef = null;
 
 function grooveOptions() {
+  const saved = store.get('play.rand', {});
   return [
     { key: 'my', name: 'My groove', detail: 'From the Build tab', groove: loadMyGroove() },
+    ...LEVEL_NAMES.map((lv, i) => ({
+      key: `r${i}`,
+      level: i,
+      name: `Sight-read · ${lv}`,
+      detail: 'A new groove you haven’t seen',
+      groove: normalizeGroove(saved[i]) || randomGroove(i),
+    })),
     ...PRESETS.map((p, i) => {
       const groove = makeGroove(p.name, p.spec);
       return { key: `p${i}`, name: p.name, detail: `${p.level} · ${subdivisionLabel(groove)}`, groove };
@@ -27,7 +36,8 @@ function grooveOptions() {
   ];
 }
 
-export function mount(root) {
+export function mount(root, nav) {
+  navRef = nav;
   const options = grooveOptions();
   const savedSel = store.get('play.sel', 'p1');
   S = {
@@ -124,12 +134,26 @@ export function unmount() {
 
 const fmtOffset = (v) => (v === 0 ? '0 ms' : `${v > 0 ? '+' : '−'}${Math.abs(v)} ms`);
 const groove = () => S.options.find((o) => o.key === S.sel).groove;
+const isRandom = (key = S.sel) => key.startsWith('r');
 
-function selectGroove(key) {
+/** Swap in a fresh random groove for the current sight-reading level. */
+function newRandom() {
+  if (S.phase === 'countin' || S.phase === 'running') return;
+  const opt = S.options.find((o) => o.key === S.sel);
+  opt.groove = randomGroove(opt.level);
+  const saved = store.get('play.rand', {});
+  saved[opt.level] = opt.groove;
+  store.set('play.rand', saved);
+  selectGroove(S.sel);
+}
+
+function selectGroove(key, fresh) {
   S.sel = key;
   store.set('play.sel', key);
+  if (fresh && isRandom(key)) return newRandom();
   const opt = S.options.find((o) => o.key === key);
   els.grooveName.textContent = opt.name;
+  navRef.set(isRandom(key) ? { right: { label: 'New groove', onClick: newRandom } } : {});
   S.colors = {};
   els.results.hidden = true;
   S.phase = 'idle';
@@ -146,7 +170,7 @@ function openPicker() {
       label: o.name,
       detail: o.key === 'my' && isEmpty(o.groove) ? 'Empty — add notes in Build' : o.detail,
       checked: o.key === S.sel,
-      onClick: () => selectGroove(o.key),
+      onClick: () => selectGroove(o.key, true),
     })),
   });
 }
@@ -337,7 +361,7 @@ function finish() {
 
   const bestAll = store.get('play.best', {});
   const name = S.options.find((o) => o.key === S.sel).name;
-  const isBest = S.sel !== 'my' && score > (bestAll[name] || 0);
+  const isBest = S.sel !== 'my' && !isRandom() && score > (bestAll[name] || 0);
   if (isBest) {
     bestAll[name] = score;
     store.set('play.best', bestAll);

@@ -68,3 +68,122 @@ export function subdivision(g) {
 export function subdivisionLabel(g) {
   return { 4: 'Quarter notes', 8: '8th notes', 16: '16th notes' }[subdivision(g)];
 }
+
+// ---------- Random grooves (sight-reading and ear training) ----------
+
+export const LEVEL_NAMES = ['Beginner', 'Intermediate', 'Advanced'];
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const chance = (p) => Math.random() < p;
+function sample(arr, n) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+/** Stable string for comparing two patterns. */
+export function patternKey(p) {
+  return KIT.map((k) => p[k.id].join('')).join('|');
+}
+
+/**
+ * A playable one-bar groove for a level (0 Beginner, 1 Intermediate, 2 Advanced).
+ * Beginner stays on 8th notes; Intermediate adds 16th kicks; Advanced adds
+ * 16th hands and an occasional tom fill on beat 4.
+ */
+export function randomGroove(level = 0) {
+  const spec = {};
+  const hands = level === 0 ? pick(['hihat', 'hihat', 'hihat', 'ride']) : pick(['hihat', 'hihat', 'ride']);
+  let handSlots = level === 0 ? (chance(0.3) ? Q : E) : level === 1 ? (chance(0.25) ? S : E) : (chance(0.55) ? S : E);
+  spec[hands] = [...handSlots];
+  spec.snare = [4, 12];
+  if (hands === 'ride' && chance(0.6)) spec.crash = [0];
+
+  const kickPool = level === 0 ? [2, 6, 8, 10, 14] : [3, 6, 7, 8, 10, 11, 14, 15].concat(level === 2 ? [2, 9, 13] : []);
+  const nKicks = level === 0 ? pick([1, 2]) : level === 1 ? pick([2, 3]) : pick([2, 3, 4]);
+  const kicks = new Set([0, ...sample(kickPool, nKicks)]);
+  if (level === 0 && !kicks.has(8) && chance(0.6)) kicks.add(8);
+  spec.kick = [...kicks];
+
+  if (level >= 1 && chance(level === 1 ? 0.25 : 0.45)) {
+    spec.snare.push(pick(level === 1 ? [14, 10] : [7, 10, 14, 15, 13]));
+  }
+  if (level === 2 && chance(0.4)) {
+    // Fill on beat 4: hands move to the drums.
+    spec[hands] = spec[hands].filter((s) => s < 12);
+    spec.snare = spec.snare.filter((s) => s < 12).concat([12]);
+    spec.tom1 = [13];
+    spec.tom2 = [14];
+    spec.floor = [15];
+    spec.kick = spec.kick.filter((s) => s < 12);
+    spec.crash = [0];
+  }
+  return makeGroove(`${LEVEL_NAMES[level]} groove`, spec);
+}
+
+/** One small, audible change to a groove (used to build "which one did you hear?" choices). */
+function mutate(g, level) {
+  const out = cloneGroove(g);
+  const p = out.pattern;
+  const grid = level === 0 ? E : S;
+  const hand = ['hihat', 'ride'].find((id) => p[id].some(Boolean));
+  const ops = [
+    () => { // move a kick
+      const on = grid.filter((s) => s && p.kick[s]);
+      const off = grid.filter((s) => s && !p.kick[s] && !p.snare[s]);
+      if (!on.length || !off.length) return false;
+      p.kick[pick(on)] = 0;
+      p.kick[pick(off)] = 1;
+      return true;
+    },
+    () => { // add a kick
+      const off = grid.filter((s) => s && !p.kick[s] && !p.snare[s]);
+      if (!off.length) return false;
+      p.kick[pick(off)] = 1;
+      return true;
+    },
+    () => { // drop a kick
+      const on = grid.filter((s) => s && p.kick[s]);
+      if (!on.length) return false;
+      p.kick[pick(on)] = 0;
+      return true;
+    },
+    () => { // move the second backbeat
+      if (!p.snare[12]) return false;
+      p.snare[12] = 0;
+      p.snare[pick(level === 0 ? [10, 14] : [10, 14, 11, 13])] = 1;
+      return true;
+    },
+    () => { // change the hands' rhythm
+      if (!hand) return false;
+      const cur = p[hand].reduce((n, v) => n + v, 0);
+      const next = level === 0 ? (cur > 4 ? Q : E) : cur > 8 ? E : S;
+      const fill = p.tom1.some(Boolean);
+      p[hand] = Array(STEPS).fill(0);
+      for (const s of next) if (!fill || s < 12) p[hand][s] = 1;
+      return true;
+    },
+  ];
+  for (let tries = 0; tries < 10; tries++) if (pick(ops)()) return out;
+  return out;
+}
+
+/** The groove plus `n - 1` look-alikes, shuffled. Returns { options, answer }. */
+export function lookAlikes(g, n, level) {
+  const seen = new Set([patternKey(g.pattern)]);
+  const options = [g];
+  const changes = level === 0 ? 2 : 1; // beginners get bigger differences
+  for (let tries = 0; options.length < n && tries < 60; tries++) {
+    let m = g;
+    for (let i = 0; i < changes; i++) m = mutate(m, level);
+    const key = patternKey(m.pattern);
+    if (seen.has(key) || isEmpty(m)) continue;
+    seen.add(key);
+    options.push(m);
+  }
+  const shuffled = sample(options, options.length);
+  return { options: shuffled, answer: shuffled.indexOf(g) };
+}

@@ -16,7 +16,8 @@ Open http://localhost:5173. To try it on your phone (same Wi-Fi), run `HOST=0.0.
 | --- | --- |
 | **Build** | Tap a step grid and watch it turn into real notation. The grid columns line up with the notes on the staff, with counts (`1 e & a`) above. Includes presets, tempo, metronome, and 8th/16th grids. |
 | **Quiz** | *Name the note* (see a note, pick the drum) or *Place the note* (see a drum, tap its spot on the staff). Three levels; notes you miss come up more often. |
-| **Play** | Tap along to a groove after a 4-click count-in. Afterwards each note on the staff is colored green, orange, or red, with on-time/early/late/missed counts and a rushing/dragging hint. |
+| **Listen** | Hear a groove, then pick which of three look-alike staffs matches it. After answering, tap any choice to hear how it differs. Beginner / Intermediate / Advanced. |
+| **Play** | Tap along to a groove after a 4-click count-in. Afterwards each note on the staff is colored green, orange, or red, with on-time/early/late/missed counts and a rushing/dragging hint. Pick a *Sight-read* groove to get a fresh random one at your level (**New groove** for another). |
 
 ## Code map
 
@@ -25,11 +26,11 @@ public/
   index.html          app shell + tab bar
   css/app.css         iOS-style design (light + dark)
   js/kit.js           drum kit + staff positions (Weinberg/PAS key)
-  js/grooves.js       groove model + presets
+  js/grooves.js       groove model, presets, random grooves + look-alikes
   js/notation.js      SVG notation renderer (two voices, beams, rests)
   js/audio.js         synthesized drums + look-ahead transport + tap timing
   js/ui.js            segmented control, stepper, switch, sheet, toast
-  js/views/*.js       Build, Quiz, Play
+  js/views/*.js       Build, Quiz, Listen, Play
 serve.mjs             zero-dependency dev server
 ```
 
