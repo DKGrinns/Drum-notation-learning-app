@@ -1,5 +1,6 @@
 // Web Audio drum synth + sample-accurate transport.
 // All drum sounds are synthesized, so there are no audio files to load.
+import { beatsOf, isTrip, NOTE } from './grooves.js';
 
 let ctx = null;
 let master = null;
@@ -74,6 +75,7 @@ function filter(type, freq, q = 0.7) {
 
 function metal(t, out, { decay, peak, hp }) {
   const g = env(t, peak, decay);
+  g.endAt = t + decay;
   const bp = filter('bandpass', 10000, 0.8);
   const hpf = filter('highpass', hp);
   bp.connect(hpf).connect(g).connect(out);
@@ -85,6 +87,17 @@ function metal(t, out, { decay, peak, hp }) {
     o.start(t);
     o.stop(t + decay + 0.05);
   }
+  return g;
+}
+
+// An open hi-hat rings until the next closed hi-hat cuts it off (the "choke").
+let openHat = null;
+function choke(t) {
+  if (!openHat || openHat.start >= t || openHat.g.endAt <= t) return;
+  const gain = openHat.g.gain;
+  gain.cancelScheduledValues(t);
+  gain.setTargetAtTime(0.0001, t, 0.012);
+  openHat = null;
 }
 
 function tom(t, out, v, f) {
@@ -122,7 +135,15 @@ const VOICES = {
     o.start(t);
     o.stop(t + 0.12);
   },
-  hihat: (t, out, v) => metal(t, out, { decay: 0.06, peak: 0.35 * v, hp: 7000 }),
+  hihat(t, out, v) {
+    choke(t);
+    metal(t, out, { decay: 0.06, peak: 0.35 * v, hp: 7000 });
+  },
+  hihatOpen(t, out, v) {
+    choke(t);
+    const g = metal(t, out, { decay: 0.45, peak: 0.3 * v, hp: 6000 });
+    openHat = { g, start: t };
+  },
   ride(t, out, v) {
     metal(t, out, { decay: 0.9, peak: 0.16 * v, hp: 5200 });
     const o = ctx.createOscillator();
@@ -152,6 +173,18 @@ export function playInstrument(id, t, velocity = 1, out) {
   VOICES[id]?.(t ?? c.currentTime, out || master, velocity);
 }
 
+/** How loud each kind of note is. */
+const LEVEL = { [NOTE.HIT]: 0.9, [NOTE.ACCENT]: 1.35, [NOTE.GHOST]: 0.28, [NOTE.OPEN]: 0.9, [NOTE.FLAM]: 0.95 };
+
+/** Play a written note: an accent is louder, a ghost note soft, a flam two quick strokes. */
+export function playNote(id, value = NOTE.HIT, t, out) {
+  const c = getCtx();
+  t = t ?? c.currentTime + 0.005;
+  if (value === NOTE.OPEN && id === 'hihat') return playInstrument('hihatOpen', t, LEVEL[value], out);
+  if (value === NOTE.FLAM) playInstrument(id, Math.max(c.currentTime, t - 0.032), 0.4, out);
+  playInstrument(id, t, LEVEL[value] ?? 0.9, out);
+}
+
 function click(t, accent, out) {
   const o = ctx.createOscillator();
   o.type = 'sine';
@@ -166,12 +199,32 @@ const val = (v) => (typeof v === 'function' ? v() : v);
 
 const TICKS = 12; // scheduler ticks per beat: 16ths land every 3, triplet 8ths every 4
 
+// Keep the phone's screen on while something is playing.
+let wake = null;
+let wakeWanted = false;
+function holdScreen(on) {
+  wakeWanted = on;
+  if (!on) {
+    wake?.release().catch(() => {});
+    wake = null;
+    return;
+  }
+  if (wake || !navigator.wakeLock) return;
+  navigator.wakeLock.request('screen').then((w) => {
+    if (wakeWanted && !wake) wake = w;
+    else w.release().catch(() => {});
+  }).catch(() => {});
+}
+
 /**
- * Loops a one-bar pattern with a look-ahead scheduler.
+ * Loops a one-bar pattern with a look-ahead scheduler. getPattern is called with
+ * the number of the bar being played (0, 1, 2…), so it can also return a
+ * different bar each time round to play a chart of several bars.
  * Emits UI events in sync with what the listener *hears*:
  *   { type: 'count', n }        count-in beat (1..4)
  *   { type: 'step', slot, loop } a slot of the pattern (16th, or triplet 8th in a triplet beat)
  *   { type: 'end' }             finished (finite loops only)
+ *   { type: 'interrupt' }       stopped because the app went to the background
  * `startTime` is beat 1 of the first loop and `sixteenth` the length of a 16th (seconds).
  */
 class Transport {
@@ -183,6 +236,7 @@ class Transport {
     this.stop();
     const c = getCtx();
     this.opts = { getBpm, getPattern, loops, playGroove, metronome, onEvent, countInBeats };
+    this.beats = beatsOf(getPattern(0)); // beats per bar (the meter stays put while playing)
     this.bus = c.createGain();
     this.bus.connect(master);
     this.step = -countInBeats * TICKS;
@@ -193,6 +247,7 @@ class Transport {
     this.queue = [];
     this.done = false;
     this.running = true;
+    holdScreen(true);
     // The timer schedules audio and also drains UI events, so events still arrive
     // when animation frames are paused (e.g. a hidden or dimmed screen).
     this.timer = setInterval(() => this._tick(), 25);
@@ -218,7 +273,7 @@ class Transport {
     const c = getCtx();
     const { getBpm, loops } = this.opts;
     while (this.running && !this.done && this.nextTime < c.currentTime + 0.12) {
-      if (this.step >= loops * 4 * TICKS) {
+      if (this.step >= loops * this.beats * TICKS) {
         this.queue.push({ type: 'end', time: this.nextTime });
         this.done = true;
         break;
@@ -236,22 +291,22 @@ class Transport {
       const pos = step + countInBeats * TICKS;
       if (pos % TICKS === 0) {
         const n = pos / TICKS + 1;
-        click(t, n === 1, this.bus);
+        click(t, (n - 1) % this.beats === 0, this.bus);
         this.queue.push({ type: 'count', n, time: t });
       }
       return;
     }
-    const tick = step % (4 * TICKS);
-    const loop = Math.floor(step / (4 * TICKS));
+    const tick = step % (this.beats * TICKS);
+    const loop = Math.floor(step / (this.beats * TICKS));
     const beat = Math.floor(tick / TICKS);
     const within = tick % TICKS;
     if (val(metronome) && within === 0) click(t, beat === 0, this.bus);
-    const p = getPattern();
-    const per = p.trip?.[beat] ? 4 : 3; // ticks per slot in this beat
+    const p = getPattern(loop);
+    const per = isTrip(p, beat) ? 4 : 3; // ticks per slot in this beat
     if (within % per) return;
     const slot = beat * 4 + within / per;
     if (val(playGroove)) {
-      for (const id in p) if (Array.isArray(p[id]) && id !== 'trip' && p[id][slot]) playInstrument(id, t, 0.9, this.bus);
+      for (const id in p) if (Array.isArray(p[id]) && id !== 'trip' && p[id][slot]) playNote(id, p[id][slot], t, this.bus);
     }
     this.queue.push({ type: 'step', slot, loop, time: t });
   }
@@ -259,6 +314,7 @@ class Transport {
   stop() {
     if (!this.running && !this.timer) return;
     this.running = false;
+    holdScreen(false);
     clearInterval(this.timer);
     this.timer = null;
     cancelAnimationFrame(this.raf);
@@ -269,6 +325,20 @@ class Transport {
       setTimeout(() => b.disconnect(), 300);
     }
   }
+
+  /** Stop because the app is no longer in front, and tell whoever started it. */
+  interrupt() {
+    if (!this.running) return;
+    const onEvent = this.opts?.onEvent;
+    this.stop();
+    onEvent?.({ type: 'interrupt' });
+  }
 }
 
 export const transport = new Transport();
+
+// A phone pauses audio and timers in the background, which would wreck the timing
+// of a run, so stop cleanly instead.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) transport.interrupt();
+});

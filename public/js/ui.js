@@ -163,6 +163,31 @@ export function sheet({ title, items }) {
   panel.querySelector('.row-btn')?.focus({ preventScroll: true });
 }
 
+/** Bottom sheet with custom content. Returns { close, body }. */
+export function modal({ title, content, onClose, tall = false }) {
+  const close = () => {
+    if (!back.isConnected) return;
+    back.classList.remove('open');
+    document.removeEventListener('keydown', onKey);
+    onClose?.();
+    setTimeout(() => back.remove(), 260);
+  };
+  const onKey = (e) => e.key === 'Escape' && close();
+  const back = h('div', { class: 'sheet-back', onClick: (e) => e.target === back && close() });
+  const body = h('div', { class: 'sheet-body' }, content);
+  const panel = h('div', { class: `sheet${tall ? ' tall' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    h('div', { class: 'grabber' }),
+    h('div', { class: 'sheet-head' },
+      h('span', { class: 'sheet-title' }, title),
+      h('button', { type: 'button', class: 'nav-btn bold', onClick: close }, 'Done')),
+    body);
+  back.append(panel);
+  document.body.append(back);
+  document.addEventListener('keydown', onKey);
+  requestAnimationFrame(() => back.classList.add('open'));
+  return { close, body };
+}
+
 let toastEl = null;
 let toastTimer = null;
 /** Small floating message, optionally with one action (e.g. Undo). */

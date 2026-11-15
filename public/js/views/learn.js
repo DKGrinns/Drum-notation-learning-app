@@ -1,15 +1,18 @@
 // Learn: a level path. Each level introduces one element, then drills it.
 import { h, svgIcon, ICONS, toast } from '../ui.js';
 import { KIT, byId } from '../kit.js';
-import { makeGroove, subdivision, emptyPattern, copyMeta, slotPos, nearestGap, validSlots, countLabel, isTrip } from '../grooves.js';
+import { makeGroove, subdivision, emptyPattern, copyMeta, slotPos, validSlots, countLabel, isTrip, countInFor } from '../grooves.js';
 import { renderPattern, renderSingle } from '../notation.js';
-import { transport, playInstrument, audioTimeAt } from '../audio.js';
+import { transport, playInstrument } from '../audio.js';
+import { tapSession, padButtons, keyHandler, flash, resultDetails, isCalibrated } from '../tap.js';
+import { openCalibration } from '../calibrate.js';
+import { logPractice, streak, bestStreak, lastWeek, history } from '../progress.js';
 import { store } from '../store.js';
+import { downloadBackup, restoreBackup, lastBackup } from '../backup.js';
 import { LEVELS, PASS } from '../curriculum.js';
 
 export const title = 'Learn';
 
-const ON_TIME = 0.045;
 const MODE_LABEL = { learn: 'Learn', practice: 'Practice', test: 'Test' };
 const MODE_HELP = {
   learn: 'You’ll hear the part you’re tapping as a guide. Four clicks, then tap along.',
@@ -66,6 +69,19 @@ function stars(li, ci) {
   return best >= 95 ? 3 : best >= Math.min(90, p + 15) ? 2 : best >= p ? 1 : 0;
 }
 
+// Spaced review: passing a level test again doubles the wait before it's due
+// (1, 2, 4… up to 30 days); failing brings it back tomorrow.
+const DAY = 864e5;
+function reviewPatch(r, passed) {
+  return { last: Date.now(), ivl: passed ? Math.min(30, r.ivl ? r.ivl * 2 : 1) : 1 };
+}
+const testIndex = (li) => LEVELS[li].challenges.findIndex((c) => c.mode === 'test');
+function reviewDue(li) {
+  if (!levelDone(li)) return false;
+  const r = rec(li, testIndex(li));
+  return !r.last || Date.now() - r.last >= (r.ivl || 1) * DAY;
+}
+
 function save(li, ci, patch) {
   S.progress[key(li, ci)] = { ...rec(li, ci), ...patch };
   store.set('learn.progress', S.progress);
@@ -86,8 +102,92 @@ function setScreen(t, back) {
   window.scrollTo(0, 0);
 }
 
+// ---------- Streak, review and progress ----------
+
+const FLAME = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c.6 3.2 2.4 4.9 4 6.7 1.5 1.7 2.5 3.4 2.5 5.6A6.5 6.5 0 0 1 12 21.3a6.5 6.5 0 0 1-6.5-6.5c0-2.4 1.1-4.3 2.6-5.6.2 1.6.9 2.8 2.1 3.4C9.8 9 10.6 5.4 12 2.5z" fill="currentColor"/></svg>';
+
+function weekDots() {
+  return h('div', { class: 'week', 'aria-label': 'Practice this week' }, lastWeek().map((d) =>
+    h('span', { class: `day${d.done ? ' done' : ''}${d.today ? ' today' : ''}` }, h('i'), d.label)));
+}
+
+function streakCard() {
+  const st = streak();
+  const n = st.days;
+  return h('button', { type: 'button', class: `card streak${n ? ' on' : ''}`, onClick: showProgress },
+    h('span', { class: 'flame' }, svgIcon(FLAME)),
+    h('span', { class: 'streak-text' },
+      h('span', { class: 'streak-n' }, n ? `${n}-day streak` : 'Start a streak'),
+      h('span', { class: 'row-sub' }, st.today ? 'You practiced today' : n ? 'Practice today to keep it going' : 'Finish any exercise today')),
+    weekDots());
+}
+
+function daysAgo(t) {
+  const d = Math.floor((Date.now() - t) / DAY);
+  return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
+}
+
+/** Passed levels whose test is due again, the most overdue first (up to 3). */
+function reviewList() {
+  const due = LEVELS.map((_, li) => li).filter(reviewDue)
+    .sort((a, b) => (rec(a, testIndex(a)).last || 0) - (rec(b, testIndex(b)).last || 0))
+    .slice(0, 3);
+  if (!due.length) return null;
+  return h('div', { class: 'review-due' },
+    h('div', { class: 'section-label' }, 'Review'),
+    h('div', { class: 'list' }, due.map((li) => {
+      const r = rec(li, testIndex(li));
+      return h('button', { type: 'button', class: 'row row-btn', onClick: () => openChallenge(li, testIndex(li)) },
+        h('span', { class: 'kind-icon test' }, svgIcon(KIND_ICONS.test)),
+        h('span', { class: 'row-main' }, h('span', null, `Level ${li + 1} · ${LEVELS[li].title}`),
+          h('span', { class: 'row-sub' }, r.last ? `Last tested ${daysAgo(r.last)}` : 'Keep it fresh: retake the test')),
+        svgIcon(ICONS.chevron, 'icon chevron'));
+    })));
+}
+
+const KIND_NAME = { drill: 'Learn', play: 'Play', sight: 'Sight-reading', listen: 'Listen', quiz: 'Quiz' };
+
+function showProgress() {
+  setScreen('Progress', { label: 'Levels', onClick: showPath });
+  const st = streak();
+  const all = history();
+  const weekAgo = Date.now() - 7 * DAY;
+  const thisWeek = all.filter((e) => e.t >= weekAgo);
+  const avg = thisWeek.length ? Math.round(thisWeek.reduce((a, e) => a + (e.score || 0), 0) / thisWeek.length) : null;
+  const tile = (n, label) => h('div', { class: 'stat' }, h('div', { class: 'stat-n' }, n), h('div', { class: 'stat-l' }, label));
+  const recent = all.slice(-20).reverse();
+  const backupSub = h('span', { class: 'row-sub' }, lastBackup());
+  root.append(
+    h('section', { class: 'card progress-card' },
+      h('div', { class: 'stats' },
+        tile(st.days, 'Streak'),
+        tile(bestStreak(), 'Best streak'),
+        tile(thisWeek.length, 'This week'),
+        tile(avg == null ? '–' : `${avg}%`, 'Avg score')),
+      weekDots()),
+    h('div', { class: 'section-label' }, 'Recent'),
+    recent.length
+      ? h('div', { class: 'list' }, recent.map((e) => h('div', { class: 'row' },
+        h('span', { class: 'row-main' }, h('span', null, e.label),
+          h('span', { class: 'row-sub' }, `${KIND_NAME[e.kind] || ''}${e.bpm ? ` · ${e.bpm} BPM` : ''} · ${daysAgo(e.t)}`)),
+        h('span', { class: `score-pill${e.score >= 80 ? ' good' : e.score >= 50 ? ' ok' : ''}` }, `${e.score}%`))))
+      : h('p', { class: 'footnote' }, 'Nothing yet. Finish a drill, a quiz or a sight-reading run and it shows up here.'),
+    h('p', { class: 'footnote' }, 'Every exercise in any tab counts toward your streak. Passed levels come back for review after 1, 2, 4… days, so they stay fresh.'),
+    h('div', { class: 'section-label' }, 'Backup'),
+    h('div', { class: 'list' },
+      h('button', { type: 'button', class: 'row row-btn', onClick: () => { downloadBackup(); backupSub.textContent = lastBackup(); } },
+        h('span', { class: 'row-main' }, h('span', null, 'Save a backup file'), backupSub),
+        svgIcon(ICONS.chevron, 'icon chevron')),
+      h('button', { type: 'button', class: 'row row-btn', onClick: () => restoreBackup(() => location.reload()) },
+        h('span', { class: 'row-main' }, h('span', null, 'Restore from a backup'), h('span', { class: 'row-sub' }, 'Replaces the progress on this device')),
+        svgIcon(ICONS.chevron, 'icon chevron'))),
+    h('p', { class: 'footnote' }, 'Your progress is stored only in this browser. A backup file lets you keep it safe or move it to another device.'),
+  );
+}
+
 function showPath() {
   setScreen(title);
+  nav.set({ right: { label: 'Progress', onClick: showProgress } });
   const current = LEVELS.findIndex((_, li) => !levelDone(li));
   const doneCount = LEVELS.filter((_, li) => levelDone(li)).length;
   const totalStars = LEVELS.reduce((a, l, li) => a + l.challenges.reduce((b, _, ci) => b + stars(li, ci), 0), 0);
@@ -103,6 +203,9 @@ function showPath() {
         h('div', { class: 'path-meta' }, `${doneCount} of ${LEVELS.length} levels`, h('span', { class: 'dot-sep' }, '·'),
           h('span', { class: 'star-count' }, '★'), ` ${totalStars} of ${maxStars}`)),
       current === -1 ? null : h('button', { type: 'button', class: 'btn-primary path-go', onClick: () => continueFrom(current) }, 'Continue')),
+    streakCard(),
+    reviewList(),
+    h('div', { class: 'section-label' }, 'Levels'),
     h('div', { class: 'list levels' },
       LEVELS.map((lv, li) => {
         const locked = !levelUnlocked(li);
@@ -213,7 +316,7 @@ function playPattern(pattern, bpm, staffs, done, { overlay, loops = 2 } = {}) {
     getBpm: () => bpm,
     getPattern: () => pattern,
     loops,
-    countInBeats: 4,
+    countInBeats: countInFor(pattern),
     playGroove: true,
     metronome: false,
     onEvent: (ev) => {
@@ -222,7 +325,7 @@ function playPattern(pattern, bpm, staffs, done, { overlay, loops = 2 } = {}) {
         overlay?.classList.remove('show');
         for (const st of staffs()) st?.setPlayhead(ev.slot);
       }
-      if (ev.type === 'end') {
+      if (ev.type === 'end' || ev.type === 'interrupt') {
         for (const st of staffs()) st?.setPlayhead(null);
         done?.();
       }
@@ -445,7 +548,7 @@ function runDrill(li, ci) {
   const pass = PASS[c.mode];
   setScreen(c.title, { label: `Level ${li + 1}`, onClick: () => showLevel(li) });
 
-  const D = { phase: 'idle', spec: null, pattern: null, judge: [], expected: [], extras: 0, colors: {}, staff: null };
+  const D = { phase: 'idle', spec: null, pattern: null, judge: [], session: null, colors: {}, staff: null };
   const pickPattern = () => {
     let spec = c.spec;
     if (c.pool) {
@@ -477,7 +580,8 @@ function runDrill(li, ci) {
     h('div', { class: 'drill-head' },
       h('span', { class: `mode-chip ${c.mode}` }, MODE_LABEL[c.mode]),
       h('span', { class: 'drill-meta' }, `${c.bpm} BPM · pass ${pass}%${best != null ? ` · best ${best}%` : ''}`)),
-    h('p', { class: 'drill-help' }, help),
+    h('p', { class: 'drill-help' }, help,
+      isCalibrated() ? null : [' ', h('button', { type: 'button', class: 'link-btn', onClick: () => openCalibration() }, 'Set up tap timing')]),
     h('section', { class: 'card score' }, h('div', { class: 'staff-wrap' }, staffHost, overlay), results),
     h('div', { class: `drill-actions${hearBtn ? '' : ' solo'}` }, hearBtn, startBtn, nextBtn),
     pads,
@@ -494,17 +598,7 @@ function runDrill(li, ci) {
   const renderStaff = () => {
     D.staff = renderPattern(staffHost, { pattern: D.pattern, colors: D.colors });
   };
-  const renderPads = () => {
-    pads.replaceChildren(...D.judge.map((k, i) => h('button', {
-      type: 'button',
-      class: `pad ${k.family}${i === D.judge.length - 1 && D.judge.length % 2 ? ' wide' : ''}`,
-      'data-id': k.id,
-      onPointerdown: (e) => {
-        e.preventDefault();
-        hit(k.id, e.timeStamp, e.currentTarget);
-      },
-    }, h('span', { class: 'pad-name' }, k.name), h('span', { class: 'pad-key' }, k.keyLabel || k.key.toUpperCase()))));
-  };
+  const renderPads = () => pads.replaceChildren(...padButtons(D.judge, hit));
   const updateControls = () => {
     startBtn.textContent = active() ? 'Stop' : D.phase === 'results' ? 'Try again' : 'Start';
     startBtn.classList.toggle('stop', active());
@@ -522,55 +616,19 @@ function runDrill(li, ci) {
   });
   ro.observe(staffHost);
 
-  onKey = (e) => {
-    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.target.closest?.('input, textarea, [role="dialog"]')) return;
-    const k = D.judge.find((x) => x.key === e.key.toLowerCase());
-    if (!k) return;
-    e.preventDefault();
-    hit(k.id, e.timeStamp, pads.querySelector(`[data-id="${k.id}"]`));
-  };
+  onKey = keyHandler(() => D.judge, hit, pads);
   window.addEventListener('keydown', onKey);
-
-  function flash(pad, kind) {
-    if (!pad) return;
-    pad.classList.remove('hit', 'good', 'ok', 'bad');
-    void pad.offsetWidth;
-    pad.classList.add('hit');
-    if (kind) pad.classList.add(kind);
-    pad.addEventListener('animationend', () => pad.classList.remove('hit', 'good', 'ok', 'bad'), { once: true });
-  }
 
   function hit(id, ts, pad) {
     playInstrument(id);
     if (!active()) return flash(pad);
-    const t = audioTimeAt(ts) - store.get('play.offset', 0) / 1000;
-    const win = Math.min(0.15, D.sixteenth * 0.5 * nearestGap(D.pattern, id));
-    let bestE = null;
-    let bestD = Infinity;
-    for (const e of D.expected) {
-      if (e.id !== id || e.hit) continue;
-      const d = t - e.time;
-      if (Math.abs(d) <= win && Math.abs(d) < Math.abs(bestD)) {
-        bestE = e;
-        bestD = d;
-      }
-    }
-    if (bestE) {
-      bestE.hit = true;
-      bestE.d = bestD;
-      flash(pad, Math.abs(bestD) <= ON_TIME ? 'good' : 'ok');
-    } else {
-      D.extras++;
-      flash(pad, 'bad');
-    }
+    flash(pad, D.session.hit(id, ts));
   }
 
   function start() {
     hearBtn?.reset();
     if (D.phase === 'results' && c.pool) pickPattern(); // a test retry gets a different pattern
     D.phase = 'countin';
-    D.extras = 0;
     results.hidden = true;
     nextBtn.hidden = true;
     resetColors();
@@ -587,7 +645,7 @@ function runDrill(li, ci) {
       getBpm: () => c.bpm,
       getPattern: () => heard,
       loops,
-      countInBeats: 4,
+      countInBeats: countInFor(D.pattern),
       playGroove: true,
       metronome: true,
       onEvent: (ev) => {
@@ -599,17 +657,10 @@ function runDrill(li, ci) {
           }
           D.staff.setPlayhead(ev.slot);
         } else if (ev.type === 'end') setTimeout(finish, 160);
+        else if (ev.type === 'interrupt') stop();
       },
     });
-    D.sixteenth = transport.sixteenth;
-    D.expected = [];
-    for (let loop = 0; loop < loops; loop++) {
-      for (let slot = 0; slot < 16; slot++) {
-        for (const k of D.judge) {
-          if (D.pattern[k.id][slot]) D.expected.push({ id: k.id, slot, time: transport.startTime + (loop * 16 + slotPos(D.pattern, slot)) * D.sixteenth, hit: false, d: 0 });
-        }
-      }
-    }
+    D.session = tapSession({ pattern: D.pattern, ids: D.judge.map((k) => k.id), loops, startTime: transport.startTime, sixteenth: transport.sixteenth });
   }
 
   function stop() {
@@ -624,56 +675,27 @@ function runDrill(li, ci) {
     if (D.phase !== 'running') return;
     D.phase = 'results';
     D.staff.setPlayhead(null);
-    let on = 0, early = 0, late = 0, missed = 0, sum = 0, hits = 0;
-    const byNote = {};
-    const rank = { on: 0, off: 1, miss: 2 };
-    for (const e of D.expected) {
-      let grade;
-      if (!e.hit) {
-        missed++;
-        grade = 'miss';
-      } else {
-        hits++;
-        sum += e.d;
-        if (Math.abs(e.d) <= ON_TIME) {
-          on++;
-          grade = 'on';
-        } else {
-          grade = 'off';
-          if (e.d < 0) early++;
-          else late++;
-        }
-      }
-      const k = `${e.id}:${e.slot}`;
-      if (!byNote[k] || rank[grade] > rank[byNote[k]]) byNote[k] = grade;
-    }
-    const total = D.expected.length;
-    const score = Math.max(0, Math.round((100 * (on + 0.5 * (early + late) - 0.25 * D.extras)) / total));
-    const colorFor = { on: 'var(--green)', off: 'var(--orange)', miss: 'var(--red)' };
-    for (const [k, v] of Object.entries(byNote)) D.colors[k] = colorFor[v];
+    const res = D.session.result();
+    const { score } = res;
+    Object.assign(D.colors, res.colors);
     renderStaff();
 
     const prevBest = rec(li, ci).best ?? -1;
     const wasDone = isDone(li, ci);
     const levelWasDone = levelDone(li);
-    if (score > prevBest) save(li, ci, { best: score });
     const passed = score >= pass;
+    const patch = score > prevBest ? { best: score } : {};
+    if (c.mode === 'test') Object.assign(patch, reviewPatch(rec(li, ci), passed));
+    save(li, ci, patch);
+    logPractice({ kind: 'drill', label: `Level ${li + 1} · ${c.title}`, score, bpm: c.bpm, level: lv.id });
 
-    const mean = hits ? (sum / hits) * 1000 : 0;
-    const tendency = hits < 3 ? ''
-      : mean < -15 ? `You’re rushing a little — about ${Math.round(-mean)} ms early on average.`
-      : mean > 15 ? `You’re dragging a little — about ${Math.round(mean)} ms late on average.`
-      : 'Nicely centered on the beat.';
-    const stat = (n, label, cls) => h('div', { class: `stat ${cls}` }, h('div', { class: 'stat-n' }, n), h('div', { class: 'stat-l' }, label));
     results.replaceChildren(
       h('div', { class: 'results-head' },
         h('div', { class: 'big-score' }, `${score}`, h('span', null, '%')),
         h('div', { class: 'results-msg' },
           h('div', { class: `results-title ${passed ? 'pass' : 'fail'}` }, passed ? (c.mode === 'test' ? 'Level passed!' : 'Passed') : `Need ${pass}% to pass`),
           h('div', { class: 'results-sub' }, starRow(stars(li, ci)), score > prevBest && prevBest >= 0 ? ' New best' : ''))),
-      h('div', { class: 'stats' }, stat(on, 'On time', 'on'), stat(early, 'Early', 'off'), stat(late, 'Late', 'off'), stat(missed, 'Missed', 'miss')),
-      tendency && h('p', { class: 'tendency' }, tendency),
-      D.extras ? h('p', { class: 'tendency' }, `${D.extras} extra tap${D.extras === 1 ? '' : 's'} that didn’t match a note.`) : '',
+      ...resultDetails(res),
       !passed && c.mode !== 'learn' ? h('p', { class: 'tendency' }, c.mode === 'test' ? 'Try again for a new pattern, or go back and practice.' : 'Tip: use “Hear it first”, then try again.') : '',
     );
     results.hidden = false;

@@ -129,7 +129,12 @@ main { padding: 4px 16px 24px; }
 }
 .row-main { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .row-sub { font-size: 13px; color: var(--ink2); }
-.row-value { color: var(--ink2); font-variant-numeric: tabular-nums; }
+.row-main:has(+ .row-value) { flex: 1 0 auto; } /* the label keeps its width; a long value truncates */
+.row-value {
+  color: var(--ink2); font-variant-numeric: tabular-nums;
+  min-width: 0; max-width: 72%; margin-left: 12px; text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .row-btn:active { background: var(--fill); }
 .list.locked { opacity: 0.45; pointer-events: none; }
 
@@ -221,6 +226,9 @@ main { padding: 4px 16px 24px; }
 /* ---------- Notation ---------- */
 .staff-host { width: 100%; color: var(--ink); }
 .notation { display: block; overflow: visible; }
+.chart-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.chart-scroll::-webkit-scrollbar { display: none; }
+.chart-scroll .notation { overflow: hidden; }
 .notation .staff-line, .notation .ledger, .notation .barline { stroke: var(--ink2); stroke-width: 1; }
 .notation .ledger { stroke: var(--ink); stroke-width: 1.2; }
 .notation .timesig { font-family: var(--font); font-weight: 700; fill: currentColor; }
@@ -567,8 +575,68 @@ body.compact .nav-title, body.title-hidden .nav-title { opacity: 1; }
 body.compact .large-title { display: none; }
 body.compact main { padding-top: 8px; }
 
+/* ---------- Note types in the Build grid ---------- */
+.cell { color: #fff; font-size: 13px; font-weight: 700; line-height: 30px; overflow: hidden; }
+.cell.v2::after { content: '>'; }
+.cell.v3.on { opacity: 0.42; }                    /* ghost: a soft note */
+.cell.v4::after { content: 'o'; font-size: 14px; } /* open hi-hat */
+.cell.v5 { background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.6) 0 3px, transparent 3px); } /* flam */
+.segmented.brush button { padding-left: 2px; padding-right: 2px; }
+
+/* ---------- Tap timing (calibration) ---------- */
+.cal-intro { font-size: 15px; line-height: 1.45; margin: 0 4px 14px; }
+.cal-stage {
+  background: var(--card); border-radius: 14px; padding: 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 14px;
+}
+.cal-count { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; min-height: 28px; color: var(--blue); }
+.cal-pad {
+  width: 148px; height: 148px; border-radius: 50%; border: 0;
+  background: var(--fill2); font-size: 20px; font-weight: 600;
+  touch-action: manipulation; -webkit-user-select: none; user-select: none;
+}
+.cal-pad:active { transform: scale(0.97); }
+.cal-pad.hit { animation: padflash 0.3s ease-out; --flash: var(--blue); }
+.cal-status { font-size: 15px; color: var(--ink2); text-align: center; min-height: 42px; line-height: 1.4; }
+.cal-actions { display: grid; gap: 10px; }
+.cal-note { margin-left: 4px; margin-right: 4px; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--blue); font: inherit; }
+.next-row { margin: -4px 0 14px; }
+.next-row:has(> [hidden]) { display: none; }
+
+/* ---------- Streak and progress ---------- */
+.card.streak {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  border: 0; text-align: left; font: inherit; color: inherit; padding: 12px 14px;
+}
+.card.streak:active { background: var(--fill); }
+.flame {
+  width: 36px; height: 36px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; background: var(--fill); color: var(--ink3);
+}
+.flame .icon, .flame svg { width: 20px; height: 20px; display: block; }
+.streak.on .flame { background: color-mix(in srgb, var(--orange) 16%, transparent); color: var(--orange); }
+.streak-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.streak-n { font-size: 17px; font-weight: 600; }
+.week { display: flex; gap: 5px; flex: none; }
+.week .day { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--ink2); font-weight: 500; }
+.week .day i { width: 10px; height: 10px; border-radius: 50%; background: var(--fill2); }
+.week .day.done i { background: var(--orange); }
+.week .day.today { color: var(--ink); font-weight: 700; }
+.progress-card .week { justify-content: space-between; margin-top: 14px; padding: 0 6px; }
+.progress-card .week .day i { width: 14px; height: 14px; }
+.progress-card .week .day { font-size: 12px; }
+.score-pill {
+  flex: none; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums;
+  padding: 3px 9px; border-radius: 12px; background: var(--fill); color: var(--ink2);
+}
+.score-pill.good { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.score-pill.ok { color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); }
+
 /* Small phones (iPhone SE and similar) */
 @media (max-width: 359px) {
+  .week { gap: 3px; }
+  .card.streak { gap: 10px; padding: 10px 12px; }
   main { padding-left: 12px; padding-right: 12px; }
   .nav { padding-left: 12px; padding-right: 12px; }
   .large-title { padding-left: 12px; padding-right: 12px; }

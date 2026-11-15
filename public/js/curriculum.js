@@ -14,8 +14,10 @@
 //   count – one note is highlighted; pick its count ("2 &")
 //   pick  – hear a groove, pick the matching staff
 //
-// Grooves use the preset spec format: { instrumentId: [slots 0–15], trip?: [triplet beats], long?: true }
-// (see grooves.js). In a triplet beat, slots beat*4 + 0..2 are "1 trip let".
+// Grooves use the preset spec format (see grooves.js makeGroove):
+//   { instrumentId: [slots], meter?: '3/4'|'6/8'|'12/8', trip?: [triplet beats], long?: true,
+//     accent?|ghost?|open?|flam?: { instrumentId: [slots] } }
+// Slots are beat*4 + j. In a triplet beat (and every 6/8 or 12/8 beat), j = 0..2 are the three 8ths.
 
 const Q = [0, 4, 8, 12];
 const E = [0, 2, 4, 6, 8, 10, 12, 14];
@@ -27,6 +29,15 @@ const ALL = [0, 1, 2, 3];
 const TWO_THREE = { trip: [1, 3], snare: [0, 2, 4, 5, 6, 8, 10, 12, 13, 14] };
 const SHUFFLE = { trip: ALL, hihat: SH, snare: [4, 12], kick: [0, 8] };
 const groove = (kick, extra = {}) => ({ hihat: E, snare: [4, 12], kick, ...extra });
+const WALTZ = { meter: '3/4', hihat: [0, 2, 4, 6, 8, 10], snare: [4, 8], kick: [0] };
+const ACC_ROCK = { hihat: E, accent: { hihat: Q }, snare: [4, 12], kick: [0, 8, 10] };
+const GHOST = { hihat: E, snare: [4, 12], ghost: { snare: [7, 15] }, kick: [0, 8] };
+const GHOST2 = { hihat: E, snare: [4, 12], ghost: { snare: [7, 9, 15] }, kick: [0, 3, 10] };
+const OPEN = { hihat: [0, 2, 4, 6, 8, 10, 12], open: { hihat: [14] }, snare: [4, 12], kick: [0, 8, 10] };
+const DISCO = { hihat: E, open: { hihat: [2, 6, 10, 14] }, snare: [4, 12], kick: Q };
+const FLAM_ROCK = { hihat: E, snare: [4], flam: { snare: [12] }, kick: [0, 8, 10] };
+const SIXEIGHT = { meter: '6/8', hihat: [0, 1, 2, 4, 5, 6], snare: [4], kick: [0, 2] };
+const BLUES = { meter: '12/8', ride: T, snare: [4, 12], kick: [0, 2, 8, 10] };
 
 export const PASS = { learn: 60, practice: 70, test: 80 };
 
@@ -308,11 +319,163 @@ export const LEVELS = [
       ] },
       { id: 'learn', kind: 'drill', mode: 'learn', title: 'Ride groove', spec: { crash: [0], ride: [2, 4, 6, 8, 10, 12, 14], snare: [4, 12], kick: [0, 6, 8] }, judge: ['snare', 'kick'], bpm: 72 },
       { id: 'practice', kind: 'drill', mode: 'practice', title: 'Push the kick', spec: { ride: E, snare: [4, 12], kick: [0, 3, 8, 11] }, judge: ['snare', 'kick'], bpm: 70 },
-      { id: 'test', kind: 'drill', mode: 'test', title: 'Final test', bpm: 76, judge: ['snare', 'kick'],
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 76, judge: ['snare', 'kick'],
         pool: [
           { ride: E, snare: [4, 12], kick: [0, 7, 8, 14] },
           { crash: [0], ride: [2, 4, 6, 8, 10, 12, 14], snare: [4, 12], kick: [0, 3, 10] },
           { ride: E, snare: [4, 12], kick: [0, 6, 7, 11] },
+        ] },
+    ],
+  },
+  {
+    id: 'l34', title: 'Three-four time', element: 'Three beats in a bar',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet 3/4', pages: [
+        { type: 'info', title: 'Count to three',
+          body: ['In **3/4** each bar has **three beats**, still a quarter note each. Count **1, 2, 3, 1, 2, 3**.',
+            'Beat 1 is the strong one. That’s what makes it feel like a waltz.'],
+          figure: { spec: { meter: '3/4', snare: [0, 4, 8] }, play: 84 } },
+        { type: 'info', title: 'The waltz',
+          body: ['A **waltz** goes **boom, chick, chick**: kick on **1**, snare on **2 and 3**.'],
+          figure: { spec: WALTZ, play: 96 } },
+        { type: 'count', spec: { meter: '3/4', snare: [0, 4, 6, 8] }, target: ['snare', 6] },
+        { type: 'pick', answer: WALTZ, others: [{ meter: '3/4', hihat: [0, 2, 4, 6, 8, 10], snare: [8], kick: [0, 4] }, ROCK], bpm: 96 },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Waltz', spec: WALTZ, judge: ['snare', 'kick'], bpm: 84 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: '8ths in three', spec: { meter: '3/4', snare: [0, 4, 6, 8] }, bpm: 80 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 84,
+        pool: [
+          { meter: '3/4', snare: [0, 2, 4, 8] },
+          { meter: '3/4', snare: [0, 6, 8, 10] },
+          { meter: '3/4', snare: [0, 4, 8, 10] },
+          { meter: '3/4', snare: [0, 2, 4, 6] },
+        ] },
+    ],
+  },
+  {
+    id: 'lac', title: 'Accents', element: 'Making some notes louder',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet the accent', pages: [
+        { type: 'info', title: 'The > mark',
+          body: ['An **accent** (**>**) means play that note **louder**. The others stay at a normal level.',
+            'Accents give a plain rhythm its shape. Listen for the loud ones.'],
+          figure: { spec: { snare: E, accent: { snare: [0, 6, 12] } }, play: 72 } },
+        { type: 'count', spec: { snare: E, accent: { snare: [0, 6, 12] } }, target: ['snare', 6] },
+        { type: 'info', title: 'Accents on the hi-hat',
+          body: ['Accenting the hi-hat on the **beat** makes a groove drive forward.',
+            'On a real kit, hit the accented notes harder. Here the app scores your **timing**, so focus on placing every note.'],
+          figure: { spec: ACC_ROCK, play: 84 } },
+        { type: 'pick', answer: { snare: E, accent: { snare: [0, 6, 12] } },
+          others: [{ snare: E, accent: { snare: [0, 4, 8, 12] } }, { snare: E, accent: { snare: [2, 6, 10, 14] } }], bpm: 72 },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Accented 8ths', spec: { snare: E, accent: { snare: [0, 6, 12] } }, bpm: 70 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'Accents in a groove', spec: ACC_ROCK, judge: ['hihat', 'kick'], bpm: 76 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 72,
+        pool: [
+          { snare: E, accent: { snare: [2, 6, 10, 14] } },
+          { snare: [0, 2, 3, 4, 6, 7, 8, 12], accent: { snare: [0, 4, 8] } },
+          { snare: X, accent: { snare: [0, 3, 6, 8, 11, 14] } },
+        ] },
+    ],
+  },
+  {
+    id: 'lgh', title: 'Ghost notes', element: 'Quiet notes between the backbeats',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet the ghost note', pages: [
+        { type: 'info', title: 'Notes in brackets',
+          body: ['A **ghost note** is written in **brackets**. Play it **very softly**, barely a tap.',
+            'Ghost notes on the snare fill the gaps around the backbeat. Funk drummers use them all the time.'],
+          figure: { spec: GHOST, play: 76 } },
+        { type: 'count', spec: GHOST, target: ['snare', 7] },
+        { type: 'info', title: 'Loud and soft together',
+          body: ['The backbeat on **2 and 4** stays loud. The ghost notes sit just before or after it.'],
+          figure: { spec: GHOST2, play: 76 } },
+        { type: 'pick', answer: GHOST2, others: [GHOST, { ...GHOST2, ghost: { snare: [9, 15] } }], bpm: 76 },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Ghosts on the “a”', spec: GHOST, judge: ['snare'], bpm: 70 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'Funk snare', spec: GHOST2, judge: ['snare', 'kick'], bpm: 72 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 72, judge: ['snare'],
+        pool: [
+          { hihat: E, snare: [4, 12], ghost: { snare: [6, 15] }, kick: [0, 8] },
+          { hihat: E, snare: [4, 12], ghost: { snare: [3, 9, 11] }, kick: [0, 8] },
+          { hihat: E, snare: [4, 12], ghost: { snare: [7, 10, 15] }, kick: [0, 8] },
+        ] },
+    ],
+  },
+  {
+    id: 'loh', title: 'Open hi-hat', element: 'The little circle, and closing it',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet the open hi-hat', pages: [
+        { type: 'info', title: 'o means open',
+          body: ['A small **o** above a hi-hat note means **open**: lift your foot so the cymbals ring.',
+            'The next hi-hat note **closes** it again, cutting the sound off.'],
+          figure: { spec: OPEN, play: 84 } },
+        { type: 'count', spec: OPEN, target: ['hihat', 14] },
+        { type: 'info', title: 'Disco hats',
+          body: ['Open the hi-hat on every **“&”** and you get the classic **disco** sound, with the kick on every beat.'],
+          figure: { spec: DISCO, play: 100 } },
+        { type: 'pick', answer: DISCO, others: [{ ...DISCO, open: { hihat: [6, 14] } }, { hihat: E, snare: [4, 12], kick: Q }], bpm: 100 },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Open on 4 &', spec: OPEN, judge: ['hihat'], bpm: 76 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'Disco hats', spec: DISCO, judge: ['hihat', 'kick'], bpm: 90 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 84, judge: ['hihat', 'kick'],
+        pool: [
+          { hihat: E, open: { hihat: [6, 14] }, snare: [4, 12], kick: [0, 8] },
+          { hihat: E, open: { hihat: [2] }, snare: [4, 12], kick: [0, 8, 10] },
+          { hihat: E, open: { hihat: [10] }, snare: [4, 12], kick: [0, 6, 8] },
+        ] },
+    ],
+  },
+  {
+    id: 'lfl', title: 'Flams', element: 'Two sticks, almost together',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet the flam', pages: [
+        { type: 'info', title: 'A tiny note in front',
+          body: ['A **flam** has a tiny **grace note** just before the main note. Play it **softly** with one stick, then the main note loud with the other, almost together.',
+            'It sounds like one fat note: **“flam”**. Count and tap the **main** note.'],
+          figure: { spec: { snare: [4, 12], flam: { snare: [0, 8] } }, play: 72 } },
+        { type: 'count', spec: { snare: [0, 4, 6, 12], flam: { snare: [8] } }, target: ['snare', 8] },
+        { type: 'info', title: 'A flam on the backbeat',
+          body: ['A flam on beat **4** makes the backbeat bigger.'],
+          figure: { spec: FLAM_ROCK, play: 84 } },
+        { type: 'pick', answer: FLAM_ROCK, others: [ROCK, { hihat: E, flam: { snare: [4] }, snare: [12], kick: [0, 8] }], bpm: 84 },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Flams on 1 and 3', spec: { snare: [4, 12], flam: { snare: [0, 8] } }, bpm: 70 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'Flam backbeat', spec: FLAM_ROCK, judge: ['snare', 'kick'], bpm: 80 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 76, judge: ['snare'],
+        pool: [
+          { snare: [0, 2, 4, 8, 10], flam: { snare: [12] } },
+          { snare: [0, 4, 6, 12], flam: { snare: [8, 14] } },
+          { snare: [2, 4, 8], flam: { snare: [0, 12] } },
+        ] },
+    ],
+  },
+  {
+    id: 'l68', title: '6/8 and 12/8', element: 'Beats split in three',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet 6/8', pages: [
+        { type: 'info', title: 'Six 8ths, two beats',
+          body: ['**6/8** has **six 8th notes** in a bar, beamed in **groups of three**. You feel **two** big beats.',
+            'Count **1 & a 2 & a**. (Some people count 1 2 3 4 5 6.) The clicks fall on the two big beats.'],
+          figure: { spec: { meter: '6/8', snare: [0, 1, 2, 4, 5, 6] }, play: 60 } },
+        { type: 'count', spec: { meter: '6/8', snare: [0, 1, 2, 4, 5, 6] }, target: ['snare', 5] },
+        { type: 'info', title: 'The dotted quarter',
+          body: ['A whole beat of 6/8 is a **dotted quarter**. A quarter plus an 8th fills a beat too: **long, short**.'],
+          figure: { spec: { meter: '6/8', snare: [0, 4, 6] }, play: 60 } },
+        { type: 'count', spec: { meter: '6/8', snare: [0, 4, 6] }, target: ['snare', 6] },
+        { type: 'info', title: '12/8: four beats of three',
+          body: ['**12/8** is four beats, each split in three. It sounds like **triplets** in 4/4, without the 3s. Blues ballads live here.'],
+          figure: { spec: BLUES, play: 60 } },
+        { type: 'pick', answer: SIXEIGHT, others: [{ meter: '6/8', hihat: [0, 1, 2, 4, 5, 6], snare: [0, 4] }, { meter: '3/4', hihat: [0, 2, 4, 6, 8, 10], snare: [4, 8], kick: [0] }], bpm: 60 },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Six 8ths', spec: { meter: '6/8', snare: [0, 1, 2, 4, 5, 6] }, bpm: 56 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'A 6/8 groove', spec: SIXEIGHT, judge: ['snare', 'kick'], bpm: 60 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Final test', bpm: 60,
+        pool: [
+          { meter: '6/8', snare: [0, 2, 4, 5, 6] },
+          { meter: '6/8', snare: [0, 4, 6] },
+          { meter: '12/8', snare: [0, 2, 4, 8, 9, 10, 12] },
+          { meter: '12/8', snare: [0, 4, 5, 6, 8, 12, 14] },
         ] },
     ],
   },

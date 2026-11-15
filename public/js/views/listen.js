@@ -5,6 +5,7 @@ import { LEVEL_NAMES, randomGroove, lookAlikes } from '../grooves.js';
 import { renderPattern } from '../notation.js';
 import { transport } from '../audio.js';
 import { store } from '../store.js';
+import { logPractice } from '../progress.js';
 
 export const title = 'Listen';
 
@@ -145,6 +146,7 @@ function renderSummary() {
     : r.score >= 6 ? 'Great listening.'
     : r.score >= 4 ? 'Getting there — keep going.'
     : 'Keep at it. Listen to the kick first, then the snare.';
+  logPractice({ kind: 'listen', label: `Listen · ${LEVEL_NAMES[S.level]}`, score: Math.round((100 * r.score) / ROUND) });
   const best = store.get('listen.best', {});
   const isBest = r.score > (best[S.level] || 0);
   if (isBest) {
@@ -180,7 +182,7 @@ function play(which) {
     metronome: false,
     onEvent: (ev) => {
       if (ev.type === 'step') for (const st of follow) st.setPlayhead(ev.slot);
-      else if (ev.type === 'end') finishAudio();
+      else if (ev.type === 'end' || ev.type === 'interrupt') finishAudio();
     },
   });
 }

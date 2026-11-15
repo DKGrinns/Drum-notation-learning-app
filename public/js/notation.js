@@ -5,6 +5,7 @@
 // Beats can be straight (16th grid) or triplets. Notes are spaced by length, or
 // evenly in 'grid' layout so the staff lines up with the Build step grid.
 import { KIT } from './kit.js';
+import { meterOf, beatsOf, barSlots, isTrip as tripOf, isTuplet, isCompound, slotPos as posOf, NOTE } from './grooves.js';
 
 /** Horizontal gutters shared with the step grid so columns line up exactly. */
 export const LEFT = 56;
@@ -47,13 +48,15 @@ function drawClef(g, x, yOf, s) {
   }
 }
 
-function drawTimeSig(g, x, yOf, s) {
-  for (const st of [6, 2]) {
+function drawTimeSig(g, x, yOf, s, meter) {
+  const wide = meter.top > 9;
+  for (const [st, n] of [[6, meter.top], [2, meter.bottom]]) {
     const t = el(g, 'text', {
-      x, y: yOf(st), class: 'timesig', 'font-size': s * 2.7,
+      x: x + (wide ? s * 0.25 : 0), y: yOf(st), class: 'timesig', 'font-size': s * (wide ? 2.35 : 2.7),
       'text-anchor': 'middle', 'dominant-baseline': 'central',
     });
-    t.textContent = '4';
+    if (wide) t.setAttribute('letter-spacing', -s * 0.15);
+    t.textContent = String(n);
   }
 }
 
@@ -128,6 +131,52 @@ function drawFlags(g, n, sx, endY, up, s, color = 'currentColor') {
 /** Notes shown in gray (parts you don't play) get gray stems, flags and beams too. */
 const MUTED = 'var(--ink3)';
 
+// ---------- Articulations ----------
+
+/** Accent: a ">" wedge centered on x. */
+function drawAccent(g, x, y, s, color) {
+  el(g, 'path', {
+    d: `M${x - 0.62 * s} ${y - 0.36 * s}L${x + 0.62 * s} ${y}L${x - 0.62 * s} ${y + 0.36 * s}`,
+    fill: 'none', stroke: color, 'stroke-width': s * 0.16, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+  });
+}
+
+/** Open hi-hat: a small circle above the note. */
+function drawOpen(g, x, y, s, color) {
+  el(g, 'circle', { cx: x, cy: y, r: s * 0.36, fill: 'none', stroke: color, 'stroke-width': s * 0.14 });
+}
+
+/** Ghost note: parentheses around the notehead. */
+function drawGhost(g, x, y, s, color) {
+  const w = s * 1.0;
+  const hgt = s * 0.62;
+  const stroke = { fill: 'none', stroke: color, 'stroke-width': s * 0.12, 'stroke-linecap': 'round' };
+  el(g, 'path', { d: `M${x - w} ${y - hgt}Q${x - w - 0.38 * s} ${y} ${x - w} ${y + hgt}`, ...stroke });
+  el(g, 'path', { d: `M${x + w} ${y - hgt}Q${x + w + 0.38 * s} ${y} ${x + w} ${y + hgt}`, ...stroke });
+}
+
+/** Room (in staff spaces) a flam's grace note needs to the left of its note. */
+const GRACE_DX = 1.75;
+
+/** Flam: a small slashed grace note just before the main note, joined by a slur. */
+function drawGrace(g, x, y, s, color) {
+  const gx = x - GRACE_DX * s;
+  const r = 0.62;
+  el(g, 'ellipse', { cx: gx, cy: y, rx: s * 0.6 * r, ry: s * 0.42 * r, transform: `rotate(-20 ${gx} ${y})`, fill: color });
+  const sx = gx + s * 0.56 * r;
+  const top = y - s * 2.3;
+  el(g, 'line', { x1: sx, x2: sx, y1: y, y2: top, stroke: color, 'stroke-width': s * 0.1 });
+  el(g, 'path', {
+    d: `M${sx} ${top} c ${0.06 * s} ${0.55 * s} ${0.7 * s} ${0.7 * s} ${0.52 * s} ${1.5 * s}`,
+    fill: 'none', stroke: color, 'stroke-width': s * 0.14, 'stroke-linecap': 'round',
+  });
+  el(g, 'line', { x1: sx - 0.45 * s, y1: top + 1.25 * s, x2: sx + 0.5 * s, y2: top + 0.45 * s, stroke: color, 'stroke-width': s * 0.1 });
+  el(g, 'path', {
+    d: `M${gx + 0.1 * s} ${y + 0.55 * s}Q${(gx + x) / 2} ${y + 1.25 * s} ${x - 0.45 * s} ${y + 0.6 * s}`,
+    fill: 'none', stroke: color, 'stroke-width': s * 0.1, 'stroke-linecap': 'round',
+  });
+}
+
 // ---------- Rhythm analysis ----------
 //
 // Each voice is broken into beats. A beat holds its notes and the rest (if any)
@@ -136,28 +185,29 @@ const MUTED = 'var(--ink3)';
 //   triplet beat  (1/3-beat units): 1 = triplet 8th, 2 = triplet quarter
 // With pattern.long, a note may instead last past its beat (dotted quarter, half,
 // dotted half, whole); the beats it covers draw nothing.
-
-const tripOf = (p, b) => !!p.trip?.[b];
-const posOf = (p, slot) => (slot >> 2) * 4 + (tripOf(p, slot >> 2) ? ((slot & 3) * 4) / 3 : slot & 3);
+// In 6/8 and 12/8 a beat is three 8ths: 1 = 8th, 2 = quarter, 3 = dotted quarter.
 
 function analyzeVoice(pattern, kit) {
   const ons = [];
-  for (let slot = 0; slot < 16; slot++) {
+  const len = barSlots(pattern);
+  const beats = beatsOf(pattern);
+  const compound = isCompound(pattern);
+  for (let slot = 0; slot < len; slot++) {
     const insts = kit.filter((k) => pattern[k.id]?.[slot]);
-    if (insts.length) ons.push({ slot, b: slot >> 2, j: slot & 3, pos: posOf(pattern, slot), insts });
+    if (insts.length) ons.push({ slot, b: slot >> 2, j: slot & 3, pos: posOf(pattern, slot), insts, vals: insts.map((k) => pattern[k.id][slot]) });
   }
 
   // Long notes: the longest standard value that fits the silence after the note.
-  const cover = [0, 0, 0, 0]; // 16ths at the start of each beat still sounding from an earlier note
-  if (pattern.long) {
+  const cover = Array(beats).fill(0); // 16ths at the start of each beat still sounding from an earlier note
+  if (pattern.long && !compound) {
     ons.forEach((o, i) => {
       if (tripOf(pattern, o.b)) return;
       const p = o.pos;
-      const gap = (ons[i + 1]?.pos ?? 16) - p;
+      const gap = (ons[i + 1]?.pos ?? len) - p;
       let v = 0;
-      if (p === 0 && gap >= 16) v = 16;
+      if (p === 0 && len === 16 && gap >= 16) v = 16;
       else if (p === 0 && gap >= 12) v = 12;
-      else if (p % 4 === 0 && p <= 8 && gap >= 8) v = 8;
+      else if (p % 4 === 0 && p + 8 <= len && gap >= 8) v = 8;
       else if (p % 2 === 0 && gap === 6) v = 6;
       if (!v) return;
       for (let b = o.b + 1; b * 4 < p + v; b++) if (tripOf(pattern, b)) return;
@@ -166,12 +216,12 @@ function analyzeVoice(pattern, kit) {
     });
   }
 
-  return [0, 1, 2, 3].map((b) => {
+  return Array.from({ length: beats }, (_, b) => {
     const trip = tripOf(pattern, b);
     const units = trip ? 3 : 4;
     const start = cover[b];
     const notes = ons.filter((o) => o.b === b);
-    const beat = { b, trip, covered: start >= 4, notes, rest: null };
+    const beat = { b, trip, tuplet: isTuplet(pattern, b), compound, covered: start >= 4, notes, rest: null };
     if (beat.covered) return beat;
     if (!notes.length) {
       if (start === 0) beat.rest = { pos: b * 4, units, whole: true };
@@ -189,6 +239,7 @@ function analyzeVoice(pattern, kit) {
         o.stem = o.long < 16;
       } else if (trip) {
         o.beams = dur === 1 ? 1 : 0;
+        o.dot = compound && dur === 3; // a whole compound beat is a dotted quarter
       } else {
         o.beams = dur === 1 ? 2 : dur === 4 ? 0 : 1;
         o.dot = dur === 3;
@@ -212,7 +263,8 @@ export const BEAT_GAP = 8;
  * spaced columns, so the staff lines up with the step grid below it.
  */
 function gridLayout(pattern, width, res) {
-  const beatW = (width - LEFT - RIGHT - 3 * BEAT_GAP) / 4;
+  const beats = beatsOf(pattern);
+  const beatW = (width - LEFT - RIGHT - (beats - 1) * BEAT_GAP) / beats;
   const cols = (b) => (tripOf(pattern, b) ? 3 : 4 / res);
   const cell = (slot) => {
     const b = slot >> 2;
@@ -223,7 +275,7 @@ function gridLayout(pattern, width, res) {
   return {
     xOf: (slot) => cell(slot).x,
     xAt: (pos) => {
-      const b = Math.min(3, Math.floor(pos / 4));
+      const b = Math.min(beats - 1, Math.floor(pos / 4));
       return LEFT + b * (beatW + BEAT_GAP) + ((pos - b * 4) / 4) * beatW + beatW / cols(b) / 2;
     },
     widthOf: (slot) => cell(slot).w,
@@ -234,9 +286,11 @@ function gridLayout(pattern, width, res) {
  * Natural layout, like engraved music: each note or rest gets room according to
  * how long it lasts (a little less than in proportion), plus a small gap between beats.
  */
-function naturalLayout(pattern, width, s, voices) {
+function naturalLayout(pattern, width, s, voices, x0 = LEFT, x1 = width - RIGHT) {
+  const len = barSlots(pattern);
   const set = new Set();
   const extra = new Map(); // column → room for a flag or dot that sticks out to the right
+  const before = new Map(); // column → room for a grace note on its left
   const room = (pos, w) => extra.set(pos, Math.max(extra.get(pos) || 0, w));
   for (const v of voices) {
     for (const beat of v) {
@@ -245,21 +299,23 @@ function naturalLayout(pattern, width, s, voices) {
         set.add(o.pos);
         if (o.flag) room(o.pos, 0.8);
         else if (o.dot) room(o.pos, 0.35);
+        if (o.vals.includes(NOTE.FLAM)) before.set(o.pos, 0.9);
+        if (o.vals.includes(NOTE.GHOST)) room(o.pos, Math.max(extra.get(o.pos) || 0, 0.25));
       }
     }
   }
   if (!set.size) set.add(0);
   const cols = [...set].sort((a, b) => a - b);
   const weights = cols.map((p, i) => {
-    const next = cols[i + 1] ?? 16;
+    const next = cols[i + 1] ?? len;
     const beatGap = Math.floor((next - 1e-6) / 4) > Math.floor(p / 4) ? 0.4 : 0;
-    return Math.max(1, next - p) ** 0.62 + beatGap + (next - p < 4 ? extra.get(p) || 0 : 0);
+    return Math.max(1, next - p) ** 0.62 + beatGap + (next - p < 4 ? extra.get(p) || 0 : 0) + (before.get(cols[i + 1]) || 0);
   });
-  const lead = s * 1.05;
+  const lead = s * (1.05 + (before.has(cols[0]) ? GRACE_DX * 0.9 : 0));
   const tail = s * 0.4;
-  const unit = (width - LEFT - RIGHT - lead - tail) / weights.reduce((a, w) => a + w, 0);
+  const unit = (x1 - x0 - lead - tail) / weights.reduce((a, w) => a + w, 0);
   const xs = [];
-  let x = LEFT + lead;
+  let x = x0 + lead;
   for (const w of weights) {
     xs.push(x);
     x += w * unit;
@@ -269,7 +325,7 @@ function naturalLayout(pattern, width, s, voices) {
     if (pos <= cols[0]) return xs[0];
     let i = cols.length - 1;
     while (i > 0 && cols[i] > pos) i--;
-    const p1 = cols[i + 1] ?? 16;
+    const p1 = cols[i + 1] ?? len;
     const x1 = xs[i + 1] ?? end;
     return xs[i] + ((pos - cols[i]) / (p1 - cols[i])) * (x1 - xs[i]);
   };
@@ -299,7 +355,7 @@ function drawVoice(c, beats, up) {
     // Like most drum charts, skip whole-beat rests in the kick voice to reduce clutter.
     if (rest && !(rest.whole && !up)) {
       const x = L.xAt(rest.pos);
-      if (rest.whole) drawRest(g, 4, x, restY, s);
+      if (rest.whole) drawRest(g, 4, x, restY, s, beat.compound); // dotted quarter rest in 6/8
       else if (trip) drawRest(g, rest.units === 2 ? 4 : 2, x, restY, s);
       else if (rest.units === 3) drawRest(g, 2, x + s * 0.3, restY, s, true); // dotted 8th rest
       else drawRest(g, rest.units === 1 ? 1 : 2, x, restY, s);
@@ -343,10 +399,33 @@ function drawVoice(c, beats, up) {
           el(g, 'circle', { cx: o.x + hw + 0.5 * s, cy: onLine ? y - s / 2 : y, r: s * 0.17, fill: o.ink });
         }
       }
+      // Ghost notes and flams belong to one drum in the chord.
+      o.insts.forEach((k, n) => {
+        const color = colors[`${k.id}:${o.slot}`] || 'currentColor';
+        if (o.vals[n] === NOTE.GHOST) drawGhost(g, o.x, yOf(k.step), s, color);
+        if (o.vals[n] === NOTE.FLAM) drawGrace(g, o.x, yOf(k.step), s, color);
+      });
+      const end = o.stem ? o.beamY ?? o.tip + sg * stemLen : o.tip;
+      o.reach = end;
       if (!o.stem) continue;
-      const end = o.beamY ?? o.tip + sg * stemLen;
       el(g, 'line', { x1: o.sx, x2: o.sx, y1: o.base, y2: end, stroke: o.ink, 'stroke-width': s * 0.13 });
       if (o.beamY == null && o.beams) drawFlags(g, o.beams, o.sx, end, up, s, o.ink);
+    }
+
+    // Accents and open hi-hat marks go past the stem end, away from the staff's middle.
+    for (const o of notes) {
+      const accent = o.vals.includes(NOTE.ACCENT);
+      const open = o.vals.includes(NOTE.OPEN);
+      if (!accent && !open) continue;
+      const cx = o.stem ? (o.x + o.sx) / 2 : o.x;
+      let y = o.reach + sg * s * (o.flag ? 1.6 : 1.0);
+      if (up) y = Math.min(y, yOf(10) - s * 0.6);
+      if (accent) {
+        drawAccent(g, cx, y, s, o.ink);
+        y += sg * s * 1.05;
+      }
+      if (open) drawOpen(g, cx, y, s, o.ink);
+      o.reach = y;
     }
 
     for (const grp of groups) {
@@ -368,10 +447,10 @@ function drawVoice(c, beats, up) {
     }
 
     // Triplet "3", with a bracket unless a single beam already joins the whole beat.
-    if (trip && !(notes.length === 1 && notes[0].j === 0)) {
+    if (beat.tuplet && !(notes.length === 1 && notes[0].j === 0)) {
       const x1 = rest ? L.xAt(rest.pos) : notes[0].x;
       const x2 = notes[notes.length - 1].x;
-      const reach = notes.map((o) => (o.stem ? o.beamY ?? o.tip + sg * stemLen : o.tip));
+      const reach = notes.map((o) => o.reach);
       const edge = up ? Math.min(...reach) - s * 1.1 : Math.max(...reach) + s * 1.1;
       const oneBeam = !rest && groups.length === 1 && groups[0].length === notes.length && notes.length > 1;
       const bx1 = (up ? x1 + hw : x1 - hw) - s * 0.4;
@@ -420,7 +499,7 @@ export function renderPattern(host, { pattern, layout = 'natural', res = 1, colo
   const g = el(svg, 'g');
   drawStaffLines(g, 4, width - 3, yOf);
   drawClef(g, 8, yOf, s);
-  drawTimeSig(g, 8 + s * 2.9, yOf, s);
+  drawTimeSig(g, 8 + s * 2.9, yOf, s, meterOf(pattern));
   el(g, 'line', { x1: width - 8, x2: width - 8, y1: yOf(8), y2: yOf(0), class: 'barline' });
   el(g, 'rect', { x: width - 5.5, y: yOf(8), width: 3, height: yOf(0) - yOf(8), fill: 'currentColor' });
   // End repeat: the bar loops.
@@ -455,6 +534,97 @@ export function renderPattern(host, { pattern, layout = 'natural', res = 1, colo
       playhead.setAttribute('width', w);
       playhead.setAttribute('rx', Math.min(6, w / 3));
       playhead.setAttribute('x', L.xOf(slot) - w / 2);
+    },
+  };
+}
+
+/**
+ * Render a chart: several bars, wrapped onto as many lines as they need.
+ * colors are keyed 'bar:drum:slot'. On a narrow screen a long chart sits in a box
+ * about two lines tall that follows the music as it plays.
+ * @param {HTMLElement} host
+ * @param {{bars: object[], colors?: object, s?: number}} opts
+ */
+export function renderChart(host, { bars, colors = {}, s }) {
+  const width = Math.max(260, Math.floor(host.clientWidth) || 320);
+  s = s || Math.max(8.5, Math.min(10.5, width / 42));
+  const top = s * 5.6; // room above the staff for cymbals, stems and accents
+  const lineH = top + s * 7.6; // …and below it for the kick's stems and rests
+  const hasKick = bars.some((p) => DOWN_KIT.some((k) => p[k.id]?.some(Boolean)));
+
+  // Bars per line: as many as fit without crowding the busiest bar (1, 2 or 4).
+  const busiest = Math.max(...bars.map((p) => {
+    const used = new Set();
+    for (const k of KIT) p[k.id].forEach((v, i) => v && used.add(i));
+    return used.size;
+  }));
+  const fits = Math.floor((width - LEFT - 12) / (busiest * s * 1.45 + s * 2.2));
+  const perLine = fits >= 4 ? 4 : fits >= 2 ? 2 : 1;
+  const lines = Math.ceil(bars.length / perLine);
+
+  const scroller = document.createElement('div');
+  scroller.className = 'chart-scroll';
+  if (lines > 2) scroller.style.maxHeight = `${Math.round(lineH * 2.3)}px`;
+  host.replaceChildren(scroller);
+  const svg = makeSvg(scroller, width, lineH * lines);
+  const playhead = el(svg, 'rect', { class: 'playhead', y: 0, height: s * 10.5, width: 0, rx: 6, x: -999 });
+  const g = el(svg, 'g');
+  const end = width - 4;
+  const where = []; // per bar: its layout and line
+
+  for (let line = 0; line < lines; line++) {
+    const yOf = (step) => line * lineH + top + ((8 - step) * s) / 2;
+    drawStaffLines(g, 4, end + 1, yOf);
+    drawClef(g, 8, yOf, s);
+    if (line === 0) drawTimeSig(g, 8 + s * 2.9, yOf, s, meterOf(bars[0]));
+    const x0 = line === 0 ? LEFT - 4 : 8 + s * 1.9;
+    const inLine = bars.slice(line * perLine, (line + 1) * perLine);
+    const barW = (end - x0) / perLine;
+    inLine.forEach((pattern, i) => {
+      const n = line * perLine + i;
+      const final = n === bars.length - 1;
+      const bx0 = x0 + i * barW;
+      const bx1 = bx0 + barW;
+      if (final) {
+        // End repeat: the chart loops.
+        el(g, 'line', { x1: bx1 - 4, x2: bx1 - 4, y1: yOf(8), y2: yOf(0), class: 'barline' });
+        el(g, 'rect', { x: bx1 - 1.5, y: yOf(8), width: 3, height: yOf(0) - yOf(8), fill: 'currentColor' });
+        for (const st of [5, 3]) el(g, 'circle', { cx: bx1 - 4 - s * 0.6, cy: yOf(st), r: s * 0.19, fill: 'currentColor' });
+      } else {
+        el(g, 'line', { x1: bx1, x2: bx1, y1: yOf(8), y2: yOf(0), class: 'barline' });
+      }
+      const upBeats = analyzeVoice(pattern, UP_KIT);
+      const downBeats = hasKick ? analyzeVoice(pattern, DOWN_KIT) : null;
+      const L = naturalLayout(pattern, width, s, [upBeats, downBeats].filter(Boolean), bx0, bx1 - s * (final ? 1.6 : 0.5));
+      const pre = `${n}:`;
+      const own = {};
+      for (const k in colors) if (k.startsWith(pre)) own[k.slice(pre.length)] = colors[k];
+      const c = { g, s, yOf, L, colors: own };
+      drawVoice(c, upBeats, true);
+      if (downBeats) drawVoice(c, downBeats, false);
+      where.push({ L, line });
+    });
+  }
+
+  let shown = -1;
+  return {
+    svg,
+    lines,
+    /** Highlight a slot of a bar (and keep its line in view); null clears it. */
+    setPlayhead(slot, bar = 0) {
+      if (slot == null || !where[bar]) {
+        shown = -1;
+        return void playhead.setAttribute('x', -999);
+      }
+      const { L, line } = where[bar];
+      const w = L.widthOf(slot);
+      playhead.setAttribute('width', w);
+      playhead.setAttribute('x', L.xOf(slot) - w / 2);
+      playhead.setAttribute('y', line * lineH + top - s * 3.4);
+      if (line !== shown) {
+        shown = line;
+        if (lines > 2) scroller.scrollTo({ top: Math.max(0, line * lineH - s * 0.5), behavior: 'smooth' });
+      }
     },
   };
 }

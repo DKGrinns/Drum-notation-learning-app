@@ -85,3 +85,8 @@ window.addEventListener('pointerdown', unlock, true);
 window.addEventListener('keydown', unlock, true);
 
 show(store.get('tab', 'learn'));
+
+// Works offline once it has loaded (and can be added to the home screen).
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}

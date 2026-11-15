@@ -6,6 +6,7 @@ import { KIT, byId } from '../kit.js';
 import { renderSingle } from '../notation.js';
 import { playInstrument } from '../audio.js';
 import { store } from '../store.js';
+import { logPractice } from '../progress.js';
 
 export const title = 'Quiz';
 
@@ -242,6 +243,7 @@ function renderSummary() {
     : r.score >= 5 ? 'Getting there — keep going.'
     : 'Keep at it. Try fewer drums with Basics first.';
   const missed = [...new Set(r.misses)].map((id) => byId[id]);
+  logPractice({ kind: 'quiz', label: `Quiz · ${LEVELS[S.level].label}`, score: Math.round((100 * r.score) / n) });
   els.card.replaceChildren(
     h('div', { class: 'summary' },
       h('div', { class: 'big-score' }, `${r.score}`, h('span', null, `/${n}`)),
