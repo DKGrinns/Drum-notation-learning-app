@@ -15,7 +15,8 @@ What's planned, in priority order. Updated 2026-11-14.
 - **Online**: published to GitHub Pages on every push.
 - **Electronic drum kit input (MIDI)**: built-in Roland TD-17KVX / VH-10 and General MIDI layout, hit-to-learn, kit timing calibration.
 - **Kit expression**: accents, ghost notes and open/closed hi-hat checked from how the kit was played.
-- **Tests** for tap scoring and the kit note map (16 in total).
+- **Tests** for tap scoring, the kit note map and replaying a recording (18 in total).
+- **Diagnostics**: record kit messages and scored runs to a file; `scripts/replay.mjs` reads it.
 
 ## Next
 
