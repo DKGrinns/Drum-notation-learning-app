@@ -3,9 +3,13 @@
 // A session lists every note you're expected to tap (per loop), matches each tap
 // to the nearest unplayed note of that drum, and grades the result.
 // Tap times are corrected by the calibrated tap offset (see calibrate.js).
+//
+// Hits from an electronic drum kit also say how hard they were played and
+// whether the hi-hat was open, so accents, ghost notes and open hi-hats can be
+// checked too. That is reported next to the timing score, not folded into it.
 import { h } from './ui.js';
 import { KIT } from './kit.js';
-import { barSlots, slotPos, nearestGap } from './grooves.js';
+import { barSlots, slotPos, nearestGap, NOTE } from './grooves.js';
 import { audioTimeAt } from './audio.js';
 import { store } from './store.js';
 import { midiOffset, onMidiHit } from './midi.js';
@@ -26,9 +30,10 @@ export const fmtOffset = (v) => (v === 0 ? '0 ms' : `${v > 0 ? '+' : '−'}${Mat
  * Pass `pattern` for one looped bar, or `bars` for a chart of several bars (played
  * through `loops` times). With bars, result colors are keyed 'bar:drum:slot'.
  * `order` lists the bar numbers in the order they are played (for repeats).
+ * toAudioTime turns an event timestamp into audio time (swapped out in tests).
  * @param {{pattern?, bars?: object[], order?: number[], ids: string[], loops: number, startTime: number, sixteenth: number}} o
  */
-export function tapSession({ pattern, bars, order, ids, loops, startTime, sixteenth }) {
+export function tapSession({ pattern, bars, order, ids, loops, startTime, sixteenth, toAudioTime = audioTimeAt }) {
   const seq = bars || [pattern];
   const ord = (bars && order) || seq.map((_, i) => i);
   const len = barSlots(seq[0]);
@@ -39,7 +44,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     for (let slot = 0; slot < len; slot++) {
       for (const id of ids) {
         if (p[id][slot]) {
-          expected.push({ id, slot, bar, time: startTime + (n * len + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
+          expected.push({ id, slot, bar, value: p[id][slot], time: startTime + (n * len + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
         }
       }
     }
@@ -48,9 +53,13 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
   const gap = Object.fromEntries(ids.map((id) => [id, Math.min(...seq.map((p) => nearestGap(p, id)))]));
   const S = { expected, extras: 0 };
 
-  /** Judge a tap (event timeStamp). A kit hit (source 'midi') has its own timing correction. Returns 'good', 'ok' or 'bad'. */
-  S.hit = (id, ts, source) => {
-    const t = audioTimeAt(ts) - (source === 'midi' ? midiOffset() : tapOffset()) / 1000;
+  /**
+   * Judge a tap (event timeStamp). A kit hit (source 'midi') has its own timing
+   * correction, and `info` ({ velocity, open }) says how it was played.
+   * Returns 'good', 'ok' or 'bad'.
+   */
+  S.hit = (id, ts, source, info) => {
+    const t = toAudioTime(ts) - (source === 'midi' ? midiOffset() : tapOffset()) / 1000;
     const win = Math.min(0.15, sixteenth * 0.5 * (gap[id] ?? 4));
     let best = null;
     let bestD = Infinity;
@@ -68,7 +77,38 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     }
     best.hit = true;
     best.d = bestD;
+    if (source === 'midi' && info?.velocity) {
+      best.vel = info.velocity;
+      best.open = !!info.open;
+    }
     return Math.abs(bestD) <= ON_TIME ? 'good' : 'ok';
+  };
+
+  /**
+   * How the kit hits were played: for each kind of note, how many were right.
+   * Loud and soft are judged against your own normal notes on the same drum, so
+   * it doesn't matter how hard you play overall. null without kit hits.
+   */
+  const expression = () => {
+    const played = expected.filter((e) => e.vel);
+    if (!played.length) return null;
+    const normal = {};
+    for (const id of ids) {
+      const v = played.filter((e) => e.id === id && e.value === NOTE.HIT).map((e) => e.vel).sort((a, b) => a - b);
+      if (v.length >= 2) normal[id] = v[v.length >> 1];
+    }
+    const tally = (list, ok) => (list.length ? { ok: list.filter(ok).length, total: list.length } : null);
+    const of = (value) => played.filter((e) => e.value === value);
+    const hats = played.filter((e) => e.id === 'hihat');
+    const hasOpen = hats.some((e) => e.value === NOTE.OPEN);
+    const out = {
+      accents: tally(of(NOTE.ACCENT), (e) => e.vel >= 120 || (normal[e.id] ? e.vel >= normal[e.id] * 1.15 : e.vel >= 95)),
+      ghosts: tally(of(NOTE.GHOST), (e) => (normal[e.id] ? e.vel <= normal[e.id] * 0.6 : e.vel <= 45)),
+      opens: tally(of(NOTE.OPEN), (e) => e.open),
+      // Closed hi-hats only matter in music that also has open ones.
+      closed: hasOpen ? tally(hats.filter((e) => e.value !== NOTE.OPEN), (e) => !e.open) : null,
+    };
+    return Object.values(out).some(Boolean) ? out : null;
   };
 
   /** Grade everything: counts, score (0–100), mean offset (ms) and a color per note. */
@@ -100,7 +140,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     const score = Math.max(0, Math.round((100 * (on + 0.5 * (early + late) - 0.25 * S.extras)) / total));
     const colorFor = { on: 'var(--green)', off: 'var(--orange)', miss: 'var(--red)' };
     const colors = Object.fromEntries(Object.entries(byNote).map(([k, v]) => [k, colorFor[v]]));
-    return { score, on, early, late, missed, hits, extras: S.extras, mean: hits ? (sum / hits) * 1000 : 0, colors };
+    return { score, on, early, late, missed, hits, extras: S.extras, mean: hits ? (sum / hits) * 1000 : 0, colors, expression: expression() };
   };
   return S;
 }
@@ -164,7 +204,24 @@ export function resultDetails(r) {
     h('div', { class: 'stats' }, stat(r.on, 'On time', 'on'), stat(r.early, 'Early', 'off'), stat(r.late, 'Late', 'off'), stat(r.missed, 'Missed', 'miss')),
     tendency && h('p', { class: 'tendency' }, tendency),
     r.extras ? h('p', { class: 'tendency' }, `${r.extras} extra tap${r.extras === 1 ? '' : 's'} that didn’t match a note.`) : '',
+    r.expression ? expressionDetails(r.expression) : '',
   ];
+}
+
+/** "From your kit": accents, ghost notes and hi-hat openings that came out right. */
+function expressionDetails(x) {
+  const parts = [
+    ['Accents', x.accents, 'Play accents clearly louder than the notes around them.'],
+    ['Ghost notes', x.ghosts, 'Play ghost notes much softer, with the stick close to the head.'],
+    ['Open hi-hat', x.opens, 'Lift your foot for the notes with a circle above them.'],
+    ['Closed hi-hat', x.closed, 'Keep the hi-hat closed except where a circle is written.'],
+  ].filter((p) => p[1]);
+  const weak = parts.find(([, t]) => t.ok / t.total < 0.7);
+  return h('div', { class: 'expression' },
+    h('div', { class: 'expression-title' }, 'From your kit'),
+    h('div', { class: 'expression-row' }, parts.map(([name, t]) =>
+      h('span', { class: `expression-chip${t.ok === t.total ? ' good' : t.ok / t.total < 0.7 ? ' low' : ''}` }, `${name} ${t.ok}/${t.total}`))),
+    weak ? h('p', { class: 'tendency' }, weak[2]) : '');
 }
 
 export const kitsFor = (ids) => KIT.filter((k) => ids.includes(k.id));

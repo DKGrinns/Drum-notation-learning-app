@@ -230,7 +230,7 @@ function updateControls() {
 function hit(id, ts, pad, kit) {
   if (!kit || midiSounds()) playInstrument(id); // a kit makes its own sound
   if (!active()) return flash(pad);
-  flash(pad, S.session.hit(id, ts, kit ? 'midi' : 'tap'));
+  flash(pad, S.session.hit(id, ts, kit ? 'midi' : 'tap', kit));
 }
 
 function start() {

@@ -26,7 +26,7 @@ Once loaded over HTTPS (or on localhost), it works offline and can be added to t
 
 Phones and Bluetooth headphones play sound late (often 20–250 ms). **Play → Calibrate tap timing** has you tap along with 16 clicks and stores the average offset. All scoring (Learn and Play) subtracts it. You can fine-tune it with the Tap offset stepper. Drills show a "Set up tap timing" link until you've calibrated.
 
-Accents, ghost notes and flams are scored for **timing only**: taps on a screen can't measure how hard you hit.
+With screen taps, accents, ghost notes and flams are scored for **timing only**: a screen can't measure how hard you hit. An electronic kit can (see below).
 
 ### Electronic drum kits
 
@@ -37,7 +37,8 @@ Accents, ghost notes and flams are scored for **timing only**: taps on a screen 
 - Kit hits have their own timing correction (**Calibrate with the kit**), separate from screen taps.
 - The app stays silent for kit hits by default, because the module makes the sound.
 - Every drum written in the music is scored. Drums that an exercise doesn't use are ignored, as is the hi-hat pedal.
-- Still timing only: how hard you hit is received but not yet scored.
+- After a run, **From your kit** shows how many accents, ghost notes and open (and closed) hi-hats came out right. Loud and soft are judged against your own normal notes on the same drum: an accent is at least 15% harder, a ghost note at most 60% as hard. This is shown beside the timing score, not folded into it.
+- The Roland note numbers were checked against a published TD-17 note list (all 24 zones match), but not yet on a real kit.
 
 ### While you practice
 
@@ -49,7 +50,7 @@ The screen stays on while anything is playing. If you switch away from the app, 
 npm test
 ```
 
-Checks the groove model: presets, random grooves and charts. See `ROADMAP.md` for what's planned next.
+Checks the groove model (presets, random grooves and charts), tap scoring, and the drum kit note map. See `ROADMAP.md` for what's planned next.
 
 ## Code map
 

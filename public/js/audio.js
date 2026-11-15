@@ -339,6 +339,8 @@ export const transport = new Transport();
 
 // A phone pauses audio and timers in the background, which would wreck the timing
 // of a run, so stop cleanly instead.
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) transport.interrupt();
-});
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) transport.interrupt();
+  });
+}

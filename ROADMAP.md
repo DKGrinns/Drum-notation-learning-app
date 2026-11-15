@@ -14,14 +14,16 @@ What's planned, in priority order. Updated 2026-11-14.
 - **Reading quizzes**: note values and rests, and "which count is this note on?".
 - **Online**: published to GitHub Pages on every push.
 - **Electronic drum kit input (MIDI)**: built-in Roland TD-17KVX / VH-10 and General MIDI layout, hit-to-learn, kit timing calibration.
+- **Kit expression**: accents, ghost notes and open/closed hi-hat checked from how the kit was played.
+- **Tests** for tap scoring and the kit note map (16 in total).
 
 ## Next
 
 1. **Dictation** in Listen: hear a groove, write it in the Build grid.
 2. **More from the kit**
-   - Score accents and ghost notes by how hard you hit, with a quick soft/loud setup step.
-   - Score open vs closed hi-hat, and add the hi-hat pedal to the notation.
-   - Check the kit on a real TD-17KVX: every zone, USB on Android and Windows.
+   - Check the kit on a real TD-17KVX: every zone, USB on Android and Windows, and whether the loud/soft thresholds feel fair.
+   - Add the hi-hat pedal to the notation and score it.
+   - Flams from the kit (two hits close together).
    - Microphone input for practice pads (knows when you hit, not which drum). Lower priority now.
    - A short first-run tour, including "connect your kit".
 3. **Longer charts**: 16 bars, repeats and endings written in Build.
@@ -29,7 +31,7 @@ What's planned, in priority order. Updated 2026-11-14.
 5. **Groove library**: save several grooves in Build, share one as a link, export as an image or MIDI file.
 6. **More notation**: hi-hat foot, cross-stick, rimshot, ride bell, stickings (R/L), ties, 32nd notes, sextuplets, rolls and drags, and 2/4, 5/4 and 7/8.
 7. **Practice tools**: tempo trainer that speeds up as you pass, tap tempo, separate volumes for click and drums.
-8. **More tests**: tap scoring and the notation layout.
+8. **More tests**: the notation layout.
 
 ## Not yet checked
 

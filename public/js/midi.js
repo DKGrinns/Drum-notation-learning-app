@@ -7,8 +7,9 @@
 // MIDI drum map; Roland adds extra notes for rims, edges and hi-hat zones. The
 // numbers don't clash, so one default map covers them all. It is written out in
 // full for the Roland TD-17 (TD-17KVX with the VH-10 hi-hat), whose factory
-// settings are the Roland lines below. "Hit to learn" in the kit setup screen
-// fixes anything a kit sends differently.
+// settings are the Roland lines below (checked against a published TD-17 note
+// list: all 24 pad zones match). "Hit to learn" in the kit setup screen fixes
+// anything a kit sends differently.
 import { store } from './store.js';
 import { byId } from './kit.js';
 

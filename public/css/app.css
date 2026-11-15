@@ -229,6 +229,12 @@ main { padding: 4px 16px 24px; }
 .chart-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .chart-scroll::-webkit-scrollbar { display: none; }
 .chart-scroll .notation { overflow: hidden; }
+.expression { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--fill); }
+.expression-title { font-size: 13px; font-weight: 600; color: var(--ink2); margin-bottom: 8px; }
+.expression-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.expression-chip { padding: 5px 10px; border-radius: 999px; background: var(--fill); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.expression-chip.good { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.expression-chip.low { background: color-mix(in srgb, var(--orange) 18%, transparent); color: var(--orange); }
 .kit-setup { padding: 0 4px 8px; }
 .kit-status { display: grid; gap: 8px; padding: 14px; border-radius: 14px; background: var(--fill); font-size: 15px; line-height: 1.4; }
 .kit-status.on { background: color-mix(in srgb, var(--green) 14%, transparent); }
