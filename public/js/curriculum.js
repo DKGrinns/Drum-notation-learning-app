@@ -14,6 +14,11 @@
 //   count – one note is highlighted; pick its count ("2 &")
 //   pick  – hear a groove, pick the matching staff
 //
+// A figure or drill can also be a chart of several bars:
+//   figure: { chart: { bars: [spec…], order?, endings? }, play: bpm }
+//   drill:  spec (or a pool entry) of the form { bars: [spec…], order?, endings? }
+// order lists the bar numbers as played; endings: [first, second] bar numbers.
+//
 // Grooves use the preset spec format (see grooves.js makeGroove):
 //   { instrumentId: [slots], meter?: '3/4'|'6/8'|'12/8', trip?: [triplet beats], long?: true,
 //     accent?|ghost?|open?|flam?: { instrumentId: [slots] } }
@@ -38,6 +43,16 @@ const DISCO = { hihat: E, open: { hihat: [2, 6, 10, 14] }, snare: [4, 12], kick:
 const FLAM_ROCK = { hihat: E, snare: [4], flam: { snare: [12] }, kick: [0, 8, 10] };
 const SIXEIGHT = { meter: '6/8', hihat: [0, 1, 2, 4, 5, 6], snare: [4], kick: [0, 2] };
 const BLUES = { meter: '12/8', ride: T, snare: [4, 12], kick: [0, 2, 8, 10] };
+
+// Charts (several bars)
+const HH6 = [0, 2, 4, 6, 8, 10]; // hi-hat 8ths that stop before a beat-4 fill
+const ROCK_AND = groove([0, 8, 10]);
+const FILL_8 = { hihat: HH6, snare: [4, 12, 14], kick: [0, 8] };
+const FILL_16 = { hihat: HH6, snare: [4, 12, 13, 14, 15], kick: [0, 8] };
+const FILL_GALLOP = { hihat: HH6, snare: [4, 12, 14, 15], kick: [0, 8, 10] };
+const CHART_2 = { bars: [ROCK, ROCK_AND] };
+const CHART_4 = { bars: [ROCK, ROCK_AND, ROCK, FILL_8] };
+const CHART_REPEAT = { bars: [ROCK, ROCK_AND, groove([0, 6, 8]), FILL_16], order: [0, 1, 2, 0, 1, 3], endings: [2, 3] };
 
 export const PASS = { learn: 60, practice: 70, test: 80 };
 
@@ -300,6 +315,33 @@ export const LEVELS = [
           { snare: [0, 1, 2, 3], tom2: [4, 6], floor: [8, 10, 12] },
           { tom1: [0, 2], tom2: [4, 6], floor: [8, 10], snare: [12, 13, 14, 15] },
           { snare: [0, 2, 4, 6], tom1: [8, 10], trip: [3], tom2: [12, 13], floor: [14] },
+        ] },
+    ],
+  },
+  {
+    id: 'lch', title: 'Reading a chart', element: 'Bar lines, fills and repeats',
+    challenges: [
+      { id: 'intro', kind: 'intro', title: 'Meet the chart', pages: [
+        { type: 'info', title: 'One bar after another',
+          body: ['Music is written in **bars**, split by **bar lines**. When a bar ends the next one starts straight away, so the count runs **1 2 3 4, 1 2 3 4**.',
+            'Read **ahead**: while you play one beat, your eyes should already be on the next.'],
+          figure: { chart: CHART_2, play: 80 } },
+        { type: 'info', title: 'Spot what changes',
+          body: ['Most bars repeat the groove, so look for the bar that is **different**. Here the last bar ends in a **fill**: the hands leave the hi-hat for the snare.',
+            'Drummers think in **four-bar phrases**: three bars of groove, then a fill.'],
+          figure: { chart: CHART_4, play: 80 } },
+        { type: 'info', title: 'Repeats and endings',
+          body: ['Two dots before a thick bar line mean **go back to the start and play it again**.',
+            'The bar under the bracket marked **1.** is played the first time only. On the repeat you **skip it** and jump to the bracket marked **2.**'],
+          figure: { chart: CHART_REPEAT, play: 80 } },
+      ] },
+      { id: 'learn', kind: 'drill', mode: 'learn', title: 'Two bars', spec: CHART_2, judge: ['snare', 'kick'], bpm: 76 },
+      { id: 'practice', kind: 'drill', mode: 'practice', title: 'Four bars with a fill', spec: CHART_4, judge: ['snare', 'kick'], bpm: 80 },
+      { id: 'test', kind: 'drill', mode: 'test', title: 'Level test', bpm: 80, judge: ['snare', 'kick'],
+        pool: [
+          { bars: [ROCK_AND, ROCK, ROCK_AND, FILL_GALLOP] },
+          { bars: [groove([0, 6, 8]), ROCK, groove([0, 6, 8]), FILL_16] },
+          CHART_REPEAT,
         ] },
     ],
   },

@@ -48,6 +48,25 @@ test('charts have four bars in one meter and end in a fill', () => {
   }
 });
 
+test('repeat charts are five bars written and eight bars played', () => {
+  for (const gen of GENS) {
+    for (let i = 0; i < 50; i++) {
+      const c = G.randomChart(gen, { repeat: true });
+      assert.equal(c.bars.length, 5);
+      assert.deepEqual(c.order, [0, 1, 2, 3, 0, 1, 2, 4]);
+      assert.deepEqual(c.endings, [3, 4]);
+      const back = G.normalizeChart(roundTrip(c));
+      assert.deepEqual(G.chartOrder(back), c.order);
+      assert.deepEqual(back.endings, c.endings);
+    }
+  }
+});
+
+test('a chart without a repeat plays its bars in order', () => {
+  assert.deepEqual(G.chartOrder(G.randomChart(0)), [0, 1, 2, 3]);
+  assert.equal(G.normalizeChart({ bars: [G.emptyPattern()], order: [0, 5] }).order, undefined);
+});
+
 test('a damaged chart is rejected', () => {
   assert.equal(G.normalizeChart(null), null);
   assert.equal(G.normalizeChart({ bars: [] }), null);

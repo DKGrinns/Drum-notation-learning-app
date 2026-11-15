@@ -2,7 +2,7 @@
 import { h, segmented, stepper, toggle, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
 import { KIT } from '../kit.js';
 import {
-  PRESETS, METERS, NOTE, NOTE_TYPES, noteTypeFits, makeGroove, cloneGroove, normalizeGroove, emptyPattern,
+  PRESETS, METERS, NOTE, NOTE_TYPES, noteTypeFits, makeGroove, clonePattern, normalizeGroove, normalizeChart, emptyPattern,
   subdivision, subdivisionLabel, isTrip, isCompound, countLabel, beatsOf, meterOf,
 } from '../grooves.js';
 import { renderPattern, LEFT, RIGHT, BEAT_GAP } from '../notation.js';
@@ -16,6 +16,7 @@ const TRIPLET = ['', 'trip', 'let'];
 const COMPOUND = ['', '&', 'a'];
 const UNITS = 12; // grid columns per beat: 16ths span 3, 8ths 6, triplets 4
 const TYPE_NAME = Object.fromEntries(NOTE_TYPES.map((t) => [t.value, t.name]));
+const MAX_BARS = 8;
 
 let S = null;
 let els = null;
@@ -26,9 +27,25 @@ export function loadMyGroove() {
   return normalizeGroove(store.get('myGroove')) || makeGroove(PRESETS[1].name, PRESETS[1].spec);
 }
 
+/** Every bar you've written (one, unless you added more). */
+function loadMyBars() {
+  const c = normalizeChart({ bars: store.get('myBars') });
+  return c && c.bars.length > 1 ? c.bars : [loadMyGroove().pattern];
+}
+
+/** Your bars as a chart, or null if you've only written one bar. */
+export function loadMyChart() {
+  const bars = loadMyBars();
+  return bars.length > 1 ? { name: 'My groove', bars } : null;
+}
+
 export function mount(root, nav) {
+  const bars = loadMyBars();
   S = {
-    groove: loadMyGroove(),
+    // `groove` is the bar being edited: groove.pattern is always bars[bar].
+    bars,
+    bar: 0,
+    groove: { name: loadMyGroove().name, pattern: bars[0] },
     bpm: store.get('build.bpm', 90),
     res: store.get('build.res', 2), // straight beats: 2 = 8th-note grid, 1 = 16th-note grid
     click: store.get('build.click', false),
@@ -46,6 +63,7 @@ export function mount(root, nav) {
   const name = h('div', { class: 'card-title' });
   const sub = h('div', { class: 'card-sub' });
   const staffHost = h('div', { class: 'staff-host' });
+  const barTabs = h('div', { class: 'bar-tabs', role: 'group', 'aria-label': 'Bars' });
   const grid = h('div', { class: 'grid', role: 'grid', 'aria-label': 'Step grid' });
   const playBtn = h('button', { type: 'button', class: 'play-btn', onClick: togglePlay });
   const bpmVal = h('span', { class: 'tempo-val' }, S.bpm);
@@ -69,6 +87,7 @@ export function mount(root, nav) {
   root.append(
     h('section', { class: 'card score' },
       h('div', { class: 'card-head' }, name, sub),
+      barTabs,
       staffHost,
       grid),
     h('div', { class: 'transport' },
@@ -96,10 +115,10 @@ export function mount(root, nav) {
         store.set('build.click', v);
       }, 'Metronome'))),
     h('p', { class: 'footnote' },
-      'Tap a square to add a note — the staff writes it for you. Pick Accent, Ghost, Open or Flam above, then tap a note to change it. Tap an instrument name to hear it.'),
+      'Tap a square to add a note — the staff writes it for you. Pick Accent, Ghost, Open or Flam above, then tap a note to change it. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on); your bars play in order and show up in Play as “My groove”.'),
   );
 
-  els = { name, sub, staffHost, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch };
+  els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch };
   updatePlayBtn();
   renderAll();
   ro = new ResizeObserver(() => renderStaff());
@@ -113,7 +132,55 @@ export function unmount() {
 }
 
 function save() {
-  store.set('myGroove', S.groove);
+  store.set('myGroove', { name: S.groove.name, pattern: S.bars[0] });
+  store.set('myBars', S.bars.length > 1 ? S.bars : null);
+}
+
+/** Everything needed to undo a change. */
+const snapshot = () => ({ name: S.groove.name, bars: S.bars.map(clonePattern), bar: S.bar });
+
+/** Replace the bar being edited. */
+function setPattern(p) {
+  S.bars[S.bar] = p;
+  S.groove.pattern = p;
+}
+
+const subText = () => `${subdivisionLabel(S.groove)}${S.bars.length > 1 ? ` · bar ${S.bar + 1} of ${S.bars.length}` : ''}`;
+
+function renderBars() {
+  const n = S.bars.length;
+  const chip = (label, props) => h('button', { type: 'button', ...props }, label);
+  els.barTabs.replaceChildren(...[
+    h('span', { class: 'bar-tabs-label' }, 'Bar'),
+    ...S.bars.map((_, i) => chip(String(i + 1), {
+      class: `beat-toggle${i === S.bar ? ' on' : ''}`, 'aria-pressed': i === S.bar, 'aria-label': `Bar ${i + 1}`, 'data-bar': i, onClick: () => selectBar(i),
+    })),
+    n < MAX_BARS && chip('+', { class: 'beat-toggle tool', 'aria-label': 'Add a bar (a copy of this one)', onClick: addBar }),
+    n > 1 && chip('−', { class: 'beat-toggle tool', 'aria-label': 'Remove this bar', onClick: removeBar }),
+  ].filter(Boolean));
+}
+
+function selectBar(i) {
+  S.bar = i;
+  S.groove.pattern = S.bars[i];
+  S.slot = null;
+  fitRes();
+  renderAll();
+}
+
+function addBar() {
+  S.bars.splice(S.bar + 1, 0, clonePattern(S.groove.pattern));
+  S.groove.name = 'My groove';
+  save();
+  selectBar(S.bar + 1);
+}
+
+function removeBar() {
+  const prev = snapshot();
+  S.bars.splice(S.bar, 1);
+  save();
+  selectBar(Math.min(S.bar, S.bars.length - 1));
+  toast(`Removed bar ${prev.bar + 1}`, { label: 'Undo', onClick: () => restore(prev) });
 }
 
 /** A groove with 16th notes in its straight beats needs the 16th-note grid. */
@@ -130,8 +197,9 @@ function fitRes() {
 function renderAll() {
   const p = S.groove.pattern;
   els.name.textContent = S.groove.name;
-  els.sub.textContent = subdivisionLabel(S.groove);
+  els.sub.textContent = subText();
   els.meterSeg.set(meterOf(p).id);
+  renderBars();
   // Triplet toggles: one per beat; compound meters are already three per beat.
   els.tripRow.hidden = isCompound(p);
   els.resSeg.hidden = isCompound(p);
@@ -222,7 +290,7 @@ function paintCell(cell, k, slot, b = slot >> 2) {
 function edited() {
   if (S.groove.name !== 'My groove') S.groove.name = 'My groove';
   els.name.textContent = S.groove.name;
-  els.sub.textContent = subdivisionLabel(S.groove);
+  els.sub.textContent = subText();
   save();
 }
 
@@ -253,7 +321,7 @@ function tapCell(k, slot, cell) {
  * triplet partner and is removed.
  */
 function toggleTrip(b) {
-  const prev = cloneGroove(S.groove);
+  const prev = snapshot();
   const p = S.groove.pattern;
   const toTrip = !isTrip(p, b);
   let lost = 0;
@@ -280,8 +348,22 @@ function toggleTrip(b) {
  * beats become triplets, so the groove sounds the same.
  */
 function setMeter(m) {
-  const prev = cloneGroove(S.groove);
-  const old = S.groove.pattern;
+  const prev = snapshot();
+  let lost = 0;
+  // Every bar of a chart shares one time signature.
+  S.bars = S.bars.map((old) => {
+    const r = convertMeter(old, m);
+    lost += r.lost;
+    return r.next;
+  });
+  S.groove.pattern = S.bars[S.bar];
+  fitRes();
+  edited();
+  renderAll();
+  if (lost) toast(`Removed ${lost} note${lost === 1 ? '' : 's'} that didn’t fit`, { label: 'Undo', onClick: () => restore(prev) });
+}
+
+function convertMeter(old, m) {
   const next = emptyPattern(m);
   const toCompound = !!METERS[m].compound;
   const fromCompound = isCompound(old);
@@ -306,15 +388,14 @@ function setMeter(m) {
     if (trip.some(Boolean)) next.trip = trip;
   }
   if (old.long) next.long = true;
-  S.groove.pattern = next;
-  fitRes();
-  edited();
-  renderAll();
-  if (lost) toast(`Removed ${lost} note${lost === 1 ? '' : 's'} that didn’t fit`, { label: 'Undo', onClick: () => restore(prev) });
+  return { next, lost };
 }
 
-function restore(g) {
-  S.groove = g;
+function restore(snap) {
+  S.bars = snap.bars;
+  S.bar = Math.min(snap.bar, S.bars.length - 1);
+  S.groove = { name: snap.name, pattern: S.bars[S.bar] };
+  fitRes();
   save();
   renderAll();
 }
@@ -354,7 +435,7 @@ function start() {
   const startPattern = S.groove.pattern;
   transport.start({
     getBpm: () => S.bpm,
-    getPattern: () => S.groove.pattern,
+    getPattern: (n) => S.bars[n % S.bars.length],
     loops: Infinity,
     playGroove: true,
     metronome: () => S.click,
@@ -365,6 +446,17 @@ function start() {
       if (beatsOf(S.groove.pattern) !== beatsOf(startPattern)) {
         stop();
         start();
+        return;
+      }
+      // The grid shows one bar; light it up only while that bar is the one playing.
+      const playing = ev.loop % S.bars.length;
+      for (const b of els.barTabs.querySelectorAll('[data-bar]')) b.classList.toggle('now', Number(b.dataset.bar) === playing);
+      if (playing !== S.bar) {
+        if (S.slot != null) {
+          S.slot = null;
+          staff.setPlayhead(null);
+          highlight(null);
+        }
         return;
       }
       // On the 8th-note grid, 16th steps in straight beats have no column to light up.
@@ -382,6 +474,7 @@ function stop() {
   S.slot = null;
   staff?.setPlayhead(null);
   highlight(null);
+  for (const b of els.barTabs.querySelectorAll('.now')) b.classList.remove('now');
   updatePlayBtn();
 }
 
@@ -391,8 +484,9 @@ function updatePlayBtn() {
 }
 
 function clear() {
-  const prev = cloneGroove(S.groove);
-  S.groove = { name: 'My groove', pattern: emptyPattern(meterOf(S.groove.pattern).id) };
+  const prev = snapshot();
+  setPattern(emptyPattern(meterOf(S.groove.pattern).id));
+  S.groove.name = 'My groove';
   save();
   renderAll();
   toast('Cleared', { label: 'Undo', onClick: () => restore(prev) });
@@ -408,7 +502,10 @@ function openPresets() {
         detail: `${p.level} · ${subdivisionLabel(g)}`,
         checked: S.groove.name === p.name,
         onClick: () => {
-          S.groove = g;
+          const m = meterOf(g.pattern).id;
+          if (m !== meterOf(S.groove.pattern).id) S.bars = S.bars.map((old) => convertMeter(old, m).next);
+          setPattern(g.pattern);
+          S.groove.name = S.bars.length > 1 ? 'My groove' : g.name;
           fitRes();
           save();
           renderAll();

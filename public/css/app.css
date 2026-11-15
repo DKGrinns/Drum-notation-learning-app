@@ -229,6 +229,11 @@ main { padding: 4px 16px 24px; }
 .chart-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .chart-scroll::-webkit-scrollbar { display: none; }
 .chart-scroll .notation { overflow: hidden; }
+.notation .ending { font-family: var(--font); font-weight: 700; fill: currentColor; }
+.bar-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 4px 10px; }
+.bar-tabs-label { font-size: 13px; color: var(--ink2); margin-right: 2px; }
+.bar-tabs .beat-toggle.now { box-shadow: 0 0 0 2px var(--blue); }
+.bar-tabs .beat-toggle.tool { background: none; border: 1.5px dashed var(--ink3); color: var(--ink2); }
 .notation .staff-line, .notation .ledger, .notation .barline { stroke: var(--ink2); stroke-width: 1; }
 .notation .ledger { stroke: var(--ink); stroke-width: 1.2; }
 .notation .timesig { font-family: var(--font); font-weight: 700; fill: currentColor; }

@@ -356,8 +356,11 @@ function styleGroove(id) {
 
 // ---------- Charts (several bars) ----------
 //
-// A chart is { name, bars: pattern[] }: one-bar patterns played one after
-// another, all in the same meter.
+// A chart is { name, bars: pattern[], order?, endings? }: one-bar patterns in the
+// same meter. Without `order` the bars are played once each, in order.
+// A chart with a repeat has endings: [first, second] (bar numbers) and an order
+// such as [0, 1, 2, 3, 0, 1, 2, 4]: play to the first ending, go back to the
+// start, then skip to the second ending.
 
 const HANDS = KIT.filter((k) => !k.foot).map((k) => k.id);
 
@@ -371,8 +374,15 @@ export function normalizeChart(c) {
   if (!c || !Array.isArray(c.bars) || !c.bars.length) return null;
   const bars = c.bars.map((p) => normalizeGroove({ pattern: p })?.pattern).filter(Boolean);
   if (bars.length !== c.bars.length || bars.some((p) => meterOf(p) !== meterOf(bars[0]))) return null;
-  return { name: String(c.name || 'Chart'), bars };
+  const out = { name: String(c.name || 'Chart'), bars };
+  const isBar = (i) => Number.isInteger(i) && i >= 0 && i < bars.length;
+  if (Array.isArray(c.order) && c.order.length && c.order.every(isBar)) out.order = [...c.order];
+  if (out.order && Array.isArray(c.endings) && c.endings.length === 2 && c.endings.every(isBar)) out.endings = [...c.endings];
+  return out;
 }
+
+/** The bar numbers in the order they are played. */
+export const chartOrder = (c) => c.order || c.bars.map((_, i) => i);
 
 /** The same bar with a kick added (and sometimes one taken away). */
 function varyKick(p, level) {
@@ -409,8 +419,10 @@ function addFill(p, level) {
 /**
  * A chart to sight-read: a groove, a small variation, the groove again, then a
  * fill. `gen` is a level (0–2) or a style id, as for randomGroove.
+ * With repeat, the fourth bar becomes a first ending and the fill a second
+ * ending, so the chart is five bars written and eight bars played.
  */
-export function randomChart(gen = 0, nBars = 4) {
+export function randomChart(gen = 0, { nBars = 4, repeat = false } = {}) {
   const simple = typeof gen === 'number'; // plain 4/4, where a kick can move freely
   const level = simple ? gen : 1;
   let base = randomGroove(gen);
@@ -425,6 +437,15 @@ export function randomChart(gen = 0, nBars = 4) {
     bars[0].crash[0] = NOTE.HIT;
   }
   const label = simple ? LEVEL_NAMES[gen] : STYLES.find((s) => s.id === gen)?.name || '';
+  if (repeat) {
+    // First ending: a lighter fill that leads back to the top.
+    const first = clonePattern(A);
+    addFill(first, Math.max(0, level - 1));
+    const n = bars.length;
+    bars.splice(n - 1, 0, first);
+    const head = Array.from({ length: n - 1 }, (_, i) => i);
+    return { name: `${label} repeat chart`.trim(), bars, order: [...head, n - 1, ...head, n], endings: [n - 1, n] };
+  }
   return { name: `${label} chart`.trim(), bars };
 }
 

@@ -1,8 +1,8 @@
 // Learn: a level path. Each level introduces one element, then drills it.
 import { h, svgIcon, ICONS, toast } from '../ui.js';
 import { KIT, byId } from '../kit.js';
-import { makeGroove, subdivision, emptyPattern, copyMeta, slotPos, validSlots, countLabel, isTrip, countInFor } from '../grooves.js';
-import { renderPattern, renderSingle } from '../notation.js';
+import { makeGroove, subdivision, emptyPattern, copyMeta, slotPos, validSlots, countLabel, isTrip, countInFor, chartOrder } from '../grooves.js';
+import { renderPattern, renderChart, renderSingle } from '../notation.js';
 import { transport, playInstrument } from '../audio.js';
 import { tapSession, padButtons, keyHandler, flash, resultDetails, isCalibrated } from '../tap.js';
 import { openCalibration } from '../calibrate.js';
@@ -283,6 +283,8 @@ const KIND_ICONS = {
 // ---------- Shared bits ----------
 
 const spec2pattern = (spec) => makeGroove('', spec).pattern;
+/** A chart spec { bars: [spec…], order?, endings? } as a chart of patterns. */
+const spec2chart = (spec) => ({ bars: spec.bars.map(spec2pattern), order: spec.order, endings: spec.endings });
 
 function richText(str) {
   return str.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? h('b', null, part) : part));
@@ -310,12 +312,14 @@ function playButton(label, onPlay) {
   return btn;
 }
 
-/** Play a pattern twice after a count-in, moving playheads on the given staffs. */
-function playPattern(pattern, bpm, staffs, done, { overlay, loops = 2 } = {}) {
+/** Play a pattern twice (or a chart once through) after a count-in, moving playheads on the given staffs. */
+function playPattern(pattern, bpm, staffs, done, { overlay, loops = 2, chart = null } = {}) {
+  const ord = chart && chartOrder(chart);
+  if (chart) pattern = chart.bars[0];
   transport.start({
     getBpm: () => bpm,
-    getPattern: () => pattern,
-    loops,
+    getPattern: ord ? (n) => chart.bars[ord[n % ord.length]] : () => pattern,
+    loops: ord ? ord.length : loops,
     countInBeats: countInFor(pattern),
     playGroove: true,
     metronome: false,
@@ -323,7 +327,7 @@ function playPattern(pattern, bpm, staffs, done, { overlay, loops = 2 } = {}) {
       if (ev.type === 'count' && overlay) popCount(overlay, ev.n);
       if (ev.type === 'step') {
         overlay?.classList.remove('show');
-        for (const st of staffs()) st?.setPlayhead(ev.slot);
+        for (const st of staffs()) st?.setPlayhead(ev.slot, ord ? ord[ev.loop % ord.length] : 0);
       }
       if (ev.type === 'end' || ev.type === 'interrupt') {
         for (const st of staffs()) st?.setPlayhead(null);
@@ -400,13 +404,18 @@ function runIntro(li, ci) {
             fig.append(h('div', { class: 'fig-labels' }, p.figure.notes.map((id, k) =>
               h('span', { style: { left: `calc(50% + ${(k - (n - 1) / 2) * 3.4 * 12}px)` } }, byId[id].name))));
           }
+        } else if (p.figure.chart) {
+          const chart = spec2chart(p.figure.chart);
+          staff = renderChart(fig, { bars: chart.bars, endings: chart.endings, full: true });
         } else {
           const pattern = spec2pattern(p.figure.spec);
           staff = renderPattern(fig, { pattern });
         }
       };
       const playBtn = p.figure.play
-        ? playButton('Play it', (done) => done && playPattern(spec2pattern(p.figure.spec), p.figure.play, () => [staff], done, { overlay }))
+        ? playButton('Play it', (done) => done && (p.figure.chart
+          ? playPattern(null, p.figure.play, () => [staff], done, { overlay, chart: spec2chart(p.figure.chart) })
+          : playPattern(spec2pattern(p.figure.spec), p.figure.play, () => [staff], done, { overlay })))
         : null;
       card.replaceChildren(...[...top,
         h('div', { class: 'lesson-title' }, p.title),
@@ -556,8 +565,11 @@ function runDrill(li, ci) {
       spec = others[Math.floor(Math.random() * others.length)] || c.pool[0];
     }
     D.spec = spec;
-    D.pattern = spec2pattern(spec);
-    D.judge = (c.judge || KIT.filter((k) => D.pattern[k.id].some(Boolean)).map((k) => k.id)).map((id) => byId[id]);
+    // A spec with `bars` is a chart of several bars.
+    D.chart = spec.bars ? spec2chart(spec) : null;
+    D.pattern = D.chart ? D.chart.bars[0] : spec2pattern(spec);
+    D.all = D.chart ? D.chart.bars : [D.pattern];
+    D.judge = (c.judge || KIT.filter((k) => D.all.some((p) => p[k.id].some(Boolean))).map((k) => k.id)).map((id) => byId[id]);
   };
   pickPattern();
 
@@ -569,7 +581,7 @@ function runDrill(li, ci) {
     : playButton('Hear it first', (done) => {
       if (!done) return;
       resetColors();
-      playPattern(D.pattern, c.bpm, () => [D.staff], done, { overlay });
+      playPattern(D.pattern, c.bpm, () => [D.staff], done, { overlay, chart: D.chart });
     });
   const nextBtn = h('button', { type: 'button', class: 'btn-primary', hidden: true, onClick: () => nextAfter(li, ci) }, 'Continue');
   const pads = h('div', { class: 'pads' });
@@ -592,11 +604,15 @@ function runDrill(li, ci) {
   const resetColors = () => {
     D.colors = {};
     // Notes you don't tap are shown in gray.
-    for (const k of KIT) if (!isJudged(k.id)) D.pattern[k.id].forEach((on, s) => on && (D.colors[`${k.id}:${s}`] = 'var(--ink3)'));
+    D.all.forEach((p, b) => {
+      for (const k of KIT) if (!isJudged(k.id)) p[k.id].forEach((on, s) => on && (D.colors[D.chart ? `${b}:${k.id}:${s}` : `${k.id}:${s}`] = 'var(--ink3)'));
+    });
     renderStaff();
   };
   const renderStaff = () => {
-    D.staff = renderPattern(staffHost, { pattern: D.pattern, colors: D.colors });
+    D.staff = D.chart
+      ? renderChart(staffHost, { bars: D.chart.bars, endings: D.chart.endings, colors: D.colors })
+      : renderPattern(staffHost, { pattern: D.pattern, colors: D.colors });
   };
   const renderPads = () => pads.replaceChildren(...padButtons(D.judge, hit));
   const updateControls = () => {
@@ -634,17 +650,20 @@ function runDrill(li, ci) {
     resetColors();
     renderPads();
     updateControls();
-    const loops = 2;
+    // One bar is played twice; a chart is played once through.
+    const loops = D.chart ? 1 : 2;
+    const ord = D.chart && chartOrder(D.chart);
     // Learn mode plays everything; otherwise only the parts you aren't tapping.
-    const heard = c.mode === 'learn' ? D.pattern : (() => {
-      const p = copyMeta(D.pattern, emptyPattern());
-      for (const k of KIT) if (!isJudged(k.id)) p[k.id] = D.pattern[k.id];
+    const heard = D.all.map((pat) => {
+      if (c.mode === 'learn') return pat;
+      const p = copyMeta(pat, emptyPattern(pat.meter));
+      for (const k of KIT) if (!isJudged(k.id)) p[k.id] = pat[k.id];
       return p;
-    })();
+    });
     transport.start({
       getBpm: () => c.bpm,
-      getPattern: () => heard,
-      loops,
+      getPattern: ord ? (n) => heard[ord[n % ord.length]] : () => heard[0],
+      loops: ord ? ord.length * loops : loops,
       countInBeats: countInFor(D.pattern),
       playGroove: true,
       metronome: true,
@@ -655,12 +674,12 @@ function runDrill(li, ci) {
             D.phase = 'running';
             overlay.classList.remove('show');
           }
-          D.staff.setPlayhead(ev.slot);
+          D.staff.setPlayhead(ev.slot, ord ? ord[ev.loop % ord.length] : 0);
         } else if (ev.type === 'end') setTimeout(finish, 160);
         else if (ev.type === 'interrupt') stop();
       },
     });
-    D.session = tapSession({ pattern: D.pattern, ids: D.judge.map((k) => k.id), loops, startTime: transport.startTime, sixteenth: transport.sixteenth });
+    D.session = tapSession({ pattern: D.pattern, bars: D.chart?.bars, order: D.chart?.order, ids: D.judge.map((k) => k.id), loops, startTime: transport.startTime, sixteenth: transport.sixteenth });
   }
 
   function stop() {

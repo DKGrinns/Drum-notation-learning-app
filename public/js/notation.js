@@ -543,13 +543,14 @@ export function renderPattern(host, { pattern, layout = 'natural', res = 1, colo
  * colors are keyed 'bar:drum:slot'. On a narrow screen a long chart sits in a box
  * about two lines tall that follows the music as it plays.
  * @param {HTMLElement} host
- * @param {{bars: object[], colors?: object, s?: number}} opts
+ * endings: [first, second] bar numbers get "1." and "2." brackets; the first ends
+ * with a repeat sign. Without endings the last bar ends with one (the chart loops).
+ * full: show every line instead of a two-line box (for short examples in lessons).
+ * @param {{bars: object[], colors?: object, endings?: number[], full?: boolean, s?: number}} opts
  */
-export function renderChart(host, { bars, colors = {}, s }) {
+export function renderChart(host, { bars, colors = {}, endings = null, full = false, s }) {
   const width = Math.max(260, Math.floor(host.clientWidth) || 320);
   s = s || Math.max(8.5, Math.min(10.5, width / 42));
-  const top = s * 5.6; // room above the staff for cymbals, stems and accents
-  const lineH = top + s * 7.6; // …and below it for the kick's stems and rests
   const hasKick = bars.some((p) => DOWN_KIT.some((k) => p[k.id]?.some(Boolean)));
 
   // Bars per line: as many as fit without crowding the busiest bar (1, 2 or 4).
@@ -558,13 +559,18 @@ export function renderChart(host, { bars, colors = {}, s }) {
     for (const k of KIT) p[k.id].forEach((v, i) => v && used.add(i));
     return used.size;
   }));
-  const fits = Math.floor((width - LEFT - 12) / (busiest * s * 1.45 + s * 2.2));
+  const fitsAt = (sp) => Math.floor((width - LEFT - 12) / (busiest * sp * 1.25 + sp * 2));
+  // On a narrow screen, 8th-note bars are drawn a little smaller so two still fit on a line.
+  if (fitsAt(s) < 2 && fitsAt(s * 0.86) >= 2) s *= 0.86;
+  const fits = fitsAt(s);
   const perLine = fits >= 4 ? 4 : fits >= 2 ? 2 : 1;
   const lines = Math.ceil(bars.length / perLine);
+  const top = s * (endings ? 7 : 5.6); // room above the staff for cymbals, stems, accents (and ending brackets)
+  const lineH = top + s * 7.6; // …and below it for the kick's stems and rests
 
   const scroller = document.createElement('div');
   scroller.className = 'chart-scroll';
-  if (lines > 2) scroller.style.maxHeight = `${Math.round(lineH * 2.3)}px`;
+  if (lines > 2 && !full) scroller.style.maxHeight = `${Math.round(lineH * 2.3)}px`;
   host.replaceChildren(scroller);
   const svg = makeSvg(scroller, width, lineH * lines);
   const playhead = el(svg, 'rect', { class: 'playhead', y: 0, height: s * 10.5, width: 0, rx: 6, x: -999 });
@@ -574,28 +580,42 @@ export function renderChart(host, { bars, colors = {}, s }) {
 
   for (let line = 0; line < lines; line++) {
     const yOf = (step) => line * lineH + top + ((8 - step) * s) / 2;
-    drawStaffLines(g, 4, end + 1, yOf);
-    drawClef(g, 8, yOf, s);
-    if (line === 0) drawTimeSig(g, 8 + s * 2.9, yOf, s, meterOf(bars[0]));
     const x0 = line === 0 ? LEFT - 4 : 8 + s * 1.9;
     const inLine = bars.slice(line * perLine, (line + 1) * perLine);
     const barW = (end - x0) / perLine;
+    drawStaffLines(g, 4, x0 + inLine.length * barW + 1, yOf);
+    drawClef(g, 8, yOf, s);
+    if (line === 0) drawTimeSig(g, 8 + s * 2.9, yOf, s, meterOf(bars[0]));
     inLine.forEach((pattern, i) => {
       const n = line * perLine + i;
       const final = n === bars.length - 1;
+      const repeatEnd = endings ? n === endings[0] : final;
       const bx0 = x0 + i * barW;
       const bx1 = bx0 + barW;
-      if (final) {
-        // End repeat: the chart loops.
+      if (repeatEnd || final) {
+        // A thin and a thick line; with two dots it means "go back and repeat".
         el(g, 'line', { x1: bx1 - 4, x2: bx1 - 4, y1: yOf(8), y2: yOf(0), class: 'barline' });
         el(g, 'rect', { x: bx1 - 1.5, y: yOf(8), width: 3, height: yOf(0) - yOf(8), fill: 'currentColor' });
-        for (const st of [5, 3]) el(g, 'circle', { cx: bx1 - 4 - s * 0.6, cy: yOf(st), r: s * 0.19, fill: 'currentColor' });
+        if (repeatEnd) for (const st of [5, 3]) el(g, 'circle', { cx: bx1 - 4 - s * 0.6, cy: yOf(st), r: s * 0.19, fill: 'currentColor' });
       } else {
         el(g, 'line', { x1: bx1, x2: bx1, y1: yOf(8), y2: yOf(0), class: 'barline' });
       }
+      const which = endings ? endings.indexOf(n) : -1;
+      if (which >= 0) {
+        // Ending bracket: "1." is closed at the right, "2." is left open.
+        const by = yOf(8) - s * 6.3;
+        const bl = bx0 + 3;
+        const br = bx1 - 5;
+        el(g, 'path', {
+          d: `M${bl} ${by + s * 1.5} V${by} H${br}${which === 0 ? ` V${by + s * 1.5}` : ''}`,
+          fill: 'none', stroke: 'currentColor', 'stroke-width': s * 0.11,
+        });
+        const t = el(g, 'text', { x: bl + s * 0.45, y: by + s * 0.85, class: 'ending', 'font-size': s * 1.2, 'dominant-baseline': 'central' });
+        t.textContent = `${which + 1}.`;
+      }
       const upBeats = analyzeVoice(pattern, UP_KIT);
       const downBeats = hasKick ? analyzeVoice(pattern, DOWN_KIT) : null;
-      const L = naturalLayout(pattern, width, s, [upBeats, downBeats].filter(Boolean), bx0, bx1 - s * (final ? 1.6 : 0.5));
+      const L = naturalLayout(pattern, width, s, [upBeats, downBeats].filter(Boolean), bx0, bx1 - s * (repeatEnd ? 1.6 : final ? 1 : 0.5));
       const pre = `${n}:`;
       const own = {};
       for (const k in colors) if (k.startsWith(pre)) own[k.slice(pre.length)] = colors[k];

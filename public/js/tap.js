@@ -24,14 +24,16 @@ export const fmtOffset = (v) => (v === 0 ? '0 ms' : `${v > 0 ? '+' : '−'}${Mat
 /**
  * Pass `pattern` for one looped bar, or `bars` for a chart of several bars (played
  * through `loops` times). With bars, result colors are keyed 'bar:drum:slot'.
- * @param {{pattern?, bars?: object[], ids: string[], loops: number, startTime: number, sixteenth: number}} o
+ * `order` lists the bar numbers in the order they are played (for repeats).
+ * @param {{pattern?, bars?: object[], order?: number[], ids: string[], loops: number, startTime: number, sixteenth: number}} o
  */
-export function tapSession({ pattern, bars, ids, loops, startTime, sixteenth }) {
+export function tapSession({ pattern, bars, order, ids, loops, startTime, sixteenth }) {
   const seq = bars || [pattern];
+  const ord = (bars && order) || seq.map((_, i) => i);
   const len = barSlots(seq[0]);
   const expected = [];
-  for (let n = 0; n < loops * seq.length; n++) {
-    const bar = n % seq.length;
+  for (let n = 0; n < loops * ord.length; n++) {
+    const bar = ord[n % ord.length];
     const p = seq[bar];
     for (let slot = 0; slot < len; slot++) {
       for (const id of ids) {
