@@ -72,3 +72,7 @@ One bar per pattern: `{ [drum]: number[beats * 4], meter?, trip?, long? }`. Slot
 A chart is `{ name, bars: pattern[] }`: one-bar patterns played in order, all in one meter.
 
 Progress and settings are saved in `localStorage`.
+
+## Online
+
+Every push to `master` runs the tests and publishes `public/` to GitHub Pages: https://dkgrinns.github.io/Drum-notation-learning-app/
