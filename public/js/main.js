@@ -1,5 +1,6 @@
 import { transport, unlockAudio } from './audio.js';
 import { store } from './store.js';
+import { resumeMidi } from './midi.js';
 import * as learn from './views/learn.js';
 import * as build from './views/build.js';
 import * as quiz from './views/quiz.js';
@@ -85,6 +86,7 @@ window.addEventListener('pointerdown', unlock, true);
 window.addEventListener('keydown', unlock, true);
 
 show(store.get('tab', 'learn'));
+resumeMidi(); // reconnect an electronic drum kit that was set up before
 
 // Works offline once it has loaded (and can be added to the home screen).
 if ('serviceWorker' in navigator && window.isSecureContext) {

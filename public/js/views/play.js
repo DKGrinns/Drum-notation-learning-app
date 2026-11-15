@@ -5,7 +5,9 @@ import { PRESETS, LEVEL_NAMES, STYLES, makeGroove, randomGroove, randomChart, no
 import { renderPattern, renderChart } from '../notation.js';
 import { transport, playInstrument } from '../audio.js';
 import { store } from '../store.js';
-import { tapSession, padButtons, keyHandler, flash, resultDetails, tapOffset, setTapOffset, fmtOffset } from '../tap.js';
+import { tapSession, padButtons, keyHandler, kitHandler, flash, resultDetails, tapOffset, setTapOffset, fmtOffset } from '../tap.js';
+import { midiSounds } from '../midi.js';
+import { openKitSetup, kitSummary } from '../kitsetup.js';
 import { openCalibration } from '../calibrate.js';
 import { logPractice } from '../progress.js';
 import { loadMyGroove, loadMyChart } from './build.js';
@@ -17,6 +19,7 @@ let els = null;
 let staff = null;
 let ro = null;
 let onKey = null;
+let offKit = null;
 let navRef = null;
 
 function grooveOptions() {
@@ -69,6 +72,7 @@ export function mount(root, nav) {
   const loopsVal = h('span', { class: 'row-value' }, S.loops);
   const offsetVal = h('span', { class: 'row-value' }, fmtOffset(tapOffset()));
   const pads = h('div', { class: 'pads' });
+  const kitVal = h('span', { class: 'row-value' }, kitSummary());
   let offsetStepper = null;
   const showOffset = (v) => {
     offsetVal.textContent = fmtOffset(v);
@@ -99,6 +103,9 @@ export function mount(root, nav) {
       h('span', { class: 'row-main' }, h('span', null, 'Calibrate tap timing'), h('span', { class: 'row-sub' }, 'Tap along to a click to measure delay')),
       svgIcon(ICONS.chevron, 'icon chevron')),
     row('Tap offset', offsetVal, offsetStepper),
+    h('button', { type: 'button', class: 'row row-btn', onClick: () => openKitSetup(() => { kitVal.textContent = kitSummary(); }) },
+      h('span', { class: 'row-main' }, h('span', null, 'Electronic drum kit'), h('span', { class: 'row-sub' }, 'Play along on a real kit over USB')),
+      kitVal, svgIcon(ICONS.chevron, 'icon chevron')),
   );
 
   const tempo = h('div', { class: 'tempo' },
@@ -123,7 +130,7 @@ export function mount(root, nav) {
     h('div', { class: 'section-label' }, 'Options'),
     settings,
     h('p', { class: 'footnote' },
-      'You’ll hear a bar of clicks, then play along. Use the pads or your keyboard. Calibrate once with the speaker or headphones you practice with.'),
+      'You’ll hear a bar of clicks, then play along. Use the pads, your keyboard or an electronic drum kit. Calibrate once with the speaker or headphones you practice with.'),
   );
 
   els = { grooveName, staffHost, overlay, results, startBtn, nextBtn, pads, settings, tempo };
@@ -133,10 +140,12 @@ export function mount(root, nav) {
 
   onKey = keyHandler(usedKits, hit, els.pads);
   window.addEventListener('keydown', onKey);
+  offKit = kitHandler(usedKits, hit, els.pads);
 }
 
 export function unmount() {
   window.removeEventListener('keydown', onKey);
+  offKit?.();
   ro?.disconnect();
   transport.stop();
 }
@@ -217,10 +226,11 @@ function updateControls() {
   els.tempo.classList.toggle('locked', active());
 }
 
-function hit(id, ts, pad) {
-  playInstrument(id);
+/** A tap on a pad or key, or (with `kit`) a hit on an electronic drum kit. */
+function hit(id, ts, pad, kit) {
+  if (!kit || midiSounds()) playInstrument(id); // a kit makes its own sound
   if (!active()) return flash(pad);
-  flash(pad, S.session.hit(id, ts));
+  flash(pad, S.session.hit(id, ts, kit ? 'midi' : 'tap'));
 }
 
 function start() {

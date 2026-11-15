@@ -229,6 +229,17 @@ main { padding: 4px 16px 24px; }
 .chart-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .chart-scroll::-webkit-scrollbar { display: none; }
 .chart-scroll .notation { overflow: hidden; }
+.kit-setup { padding: 0 4px 8px; }
+.kit-status { display: grid; gap: 8px; padding: 14px; border-radius: 14px; background: var(--fill); font-size: 15px; line-height: 1.4; }
+.kit-status.on { background: color-mix(in srgb, var(--green) 14%, transparent); }
+.kit-status span { color: var(--ink2); }
+.kit-monitor { padding: 9px 12px; border-radius: 10px; background: var(--card); font-size: 14px; font-variant-numeric: tabular-nums; }
+.kit-monitor.hit { animation: padflash 0.3s ease-out; --flash: var(--green); }
+.kit-row .row-sub { white-space: normal; }
+.kit-row.learning { background: color-mix(in srgb, var(--blue) 10%, transparent); }
+.chip-btn { flex: none; border: 0; border-radius: 999px; padding: 7px 14px; background: var(--fill); color: var(--blue); font: inherit; font-size: 15px; font-weight: 600; }
+.chip-btn.on { background: var(--blue); color: #fff; }
+.chip-btn:disabled { opacity: 0.4; }
 .notation .ending { font-family: var(--font); font-weight: 700; fill: currentColor; }
 .bar-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 4px 10px; }
 .bar-tabs-label { font-size: 13px; color: var(--ink2); margin-right: 2px; }

@@ -13,13 +13,17 @@ What's planned, in priority order. Updated 2026-11-14.
 - **Learn level 13, "Reading a chart"**: bar lines, fills, repeats and endings.
 - **Reading quizzes**: note values and rests, and "which count is this note on?".
 - **Online**: published to GitHub Pages on every push.
+- **Electronic drum kit input (MIDI)**: built-in Roland TD-17KVX / VH-10 and General MIDI layout, hit-to-learn, kit timing calibration.
 
 ## Next
 
 1. **Dictation** in Listen: hear a groove, write it in the Build grid.
-2. **Real drum input**
-   - MIDI from an electronic kit (Chrome on Android and desktop; not Safari on iPhone). Lets accents and ghost notes be scored by how hard you hit.
-   - Microphone: detect hits on a practice pad. Knows when you hit, not which drum.
+2. **More from the kit**
+   - Score accents and ghost notes by how hard you hit, with a quick soft/loud setup step.
+   - Score open vs closed hi-hat, and add the hi-hat pedal to the notation.
+   - Check the kit on a real TD-17KVX: every zone, USB on Android and Windows.
+   - Microphone input for practice pads (knows when you hit, not which drum). Lower priority now.
+   - A short first-run tour, including "connect your kit".
 3. **Longer charts**: 16 bars, repeats and endings written in Build.
 4. **iPhone home-screen icon** (a PNG; the current icon is SVG only).
 5. **Groove library**: save several grooves in Build, share one as a link, export as an image or MIDI file.

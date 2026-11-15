@@ -4,7 +4,9 @@ import { KIT, byId } from '../kit.js';
 import { makeGroove, subdivision, emptyPattern, copyMeta, slotPos, validSlots, countLabel, isTrip, countInFor, chartOrder } from '../grooves.js';
 import { renderPattern, renderChart, renderSingle } from '../notation.js';
 import { transport, playInstrument } from '../audio.js';
-import { tapSession, padButtons, keyHandler, flash, resultDetails, isCalibrated } from '../tap.js';
+import { tapSession, padButtons, keyHandler, kitHandler, flash, resultDetails, isCalibrated } from '../tap.js';
+import { midiSounds } from '../midi.js';
+import { openKitSetup, kitSummary } from '../kitsetup.js';
 import { openCalibration } from '../calibrate.js';
 import { logPractice, streak, bestStreak, lastWeek, history } from '../progress.js';
 import { store } from '../store.js';
@@ -24,6 +26,7 @@ let S = null;
 let root = null;
 let nav = null;
 let onKey = null;
+let offKit = null;
 let ro = null;
 
 export function mount(r, n) {
@@ -42,6 +45,8 @@ function cleanup() {
   transport.stop();
   if (onKey) window.removeEventListener('keydown', onKey);
   onKey = null;
+  offKit?.();
+  offKit = null;
   ro?.disconnect();
   ro = null;
 }
@@ -157,6 +162,7 @@ function showProgress() {
   const tile = (n, label) => h('div', { class: 'stat' }, h('div', { class: 'stat-n' }, n), h('div', { class: 'stat-l' }, label));
   const recent = all.slice(-20).reverse();
   const backupSub = h('span', { class: 'row-sub' }, lastBackup());
+  const kitVal = h('span', { class: 'row-value' }, kitSummary());
   root.append(
     h('section', { class: 'card progress-card' },
       h('div', { class: 'stats' },
@@ -173,6 +179,11 @@ function showProgress() {
         h('span', { class: `score-pill${e.score >= 80 ? ' good' : e.score >= 50 ? ' ok' : ''}` }, `${e.score}%`))))
       : h('p', { class: 'footnote' }, 'Nothing yet. Finish a drill, a quiz or a sight-reading run and it shows up here.'),
     h('p', { class: 'footnote' }, 'Every exercise in any tab counts toward your streak. Passed levels come back for review after 1, 2, 4… days, so they stay fresh.'),
+    h('div', { class: 'section-label' }, 'Equipment'),
+    h('div', { class: 'list' },
+      h('button', { type: 'button', class: 'row row-btn', onClick: () => openKitSetup(() => { kitVal.textContent = kitSummary(); }) },
+        h('span', { class: 'row-main' }, h('span', null, 'Electronic drum kit'), h('span', { class: 'row-sub' }, 'Play along on a real kit over USB')),
+        kitVal, svgIcon(ICONS.chevron, 'icon chevron'))),
     h('div', { class: 'section-label' }, 'Backup'),
     h('div', { class: 'list' },
       h('button', { type: 'button', class: 'row row-btn', onClick: () => { downloadBackup(); backupSub.textContent = lastBackup(); } },
@@ -634,11 +645,12 @@ function runDrill(li, ci) {
 
   onKey = keyHandler(() => D.judge, hit, pads);
   window.addEventListener('keydown', onKey);
+  offKit = kitHandler(() => D.judge, hit, pads);
 
-  function hit(id, ts, pad) {
-    playInstrument(id);
+  function hit(id, ts, pad, kit) {
+    if (!kit || midiSounds()) playInstrument(id); // a kit makes its own sound
     if (!active()) return flash(pad);
-    flash(pad, D.session.hit(id, ts));
+    flash(pad, D.session.hit(id, ts, kit ? 'midi' : 'tap'));
   }
 
   function start() {

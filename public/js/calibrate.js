@@ -6,54 +6,64 @@ import { h, modal, toast } from './ui.js';
 import { emptyPattern } from './grooves.js';
 import { transport, audioTimeAt, playInstrument } from './audio.js';
 import { tapOffset, setTapOffset, fmtOffset } from './tap.js';
+import { midiOffset, setMidiOffset, onMidiHit } from './midi.js';
 
 const BPM = 90;
 const CLICKS = 16; // clicks to tap along with (after a 4-click count-in)
 const SKIP = 2; // the first taps are often a bit off while you lock in
 const MIN_TAPS = 8;
 
-/** Open the calibration sheet. onSaved(ms) runs when a new offset is saved. */
-export function openCalibration(onSaved) {
+/**
+ * Open the calibration sheet. onSaved(ms) runs when a new offset is saved.
+ * source 'kit' measures hits on an electronic drum kit instead of taps.
+ */
+export function openCalibration(onSaved, source = 'tap') {
+  const kit = source === 'kit';
+  const getOffset = kit ? midiOffset : tapOffset;
+  const setOffset = kit ? setMidiOffset : setTapOffset;
   let taps = [];
   let running = false;
   let result = null;
 
   const status = h('div', { class: 'cal-status' });
   const count = h('div', { class: 'cal-count' });
-  const pad = h('button', { type: 'button', class: 'cal-pad', 'aria-label': 'Tap' }, 'Tap');
+  const pad = h('button', { type: 'button', class: 'cal-pad', 'aria-label': 'Tap', disabled: kit }, kit ? 'Hit your snare' : 'Tap');
   const startBtn = h('button', { type: 'button', class: 'btn-primary' }, 'Start');
   const saveBtn = h('button', { type: 'button', class: 'btn-primary', hidden: true }, 'Use this timing');
   const current = h('p', { class: 'footnote cal-note' });
 
   const content = h('div', { class: 'cal' },
     h('p', { class: 'cal-intro' },
-      'Phones and wireless headphones play sound a little late. Tap the pad along with ',
+      kit ? 'The click reaches your ears a little late, more so over wireless headphones. Hit your snare along with '
+        : 'Phones and wireless headphones play sound a little late. Tap the pad along with ',
       h('b', null, `${CLICKS} clicks`), ', and the app will learn the delay and correct your scores for it.'),
     h('div', { class: 'cal-stage' }, count, pad, status),
     h('div', { class: 'cal-actions' }, startBtn, saveBtn),
     current);
 
   const showCurrent = () => {
-    current.textContent = `Current correction: ${fmtOffset(tapOffset())}. Use the headphones or speaker you’ll practice with.`;
+    current.textContent = `Current correction: ${fmtOffset(getOffset())}. Use the headphones or speaker you’ll practice with.`;
   };
   const setStatus = (text, n = '') => {
     status.textContent = text;
     count.textContent = n;
   };
 
-  const onTap = (ts) => {
+  const onTap = (ts, silent) => {
     pad.classList.remove('hit');
     void pad.offsetWidth;
     pad.classList.add('hit');
-    playInstrument('snare', undefined, 0.5);
+    if (!silent) playInstrument('snare', undefined, 0.5);
     if (running) taps.push(audioTimeAt(ts));
   };
+  // With a kit, any drum counts and the kit makes the sound.
+  const offKit = kit ? onMidiHit((hit) => onTap(hit.ts, true)) : null;
   pad.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     onTap(e.timeStamp);
   });
   const onKey = (e) => {
-    if (e.repeat || e.key !== ' ') return;
+    if (kit || e.repeat || e.key !== ' ') return;
     e.preventDefault();
     onTap(e.timeStamp);
   };
@@ -130,23 +140,24 @@ export function openCalibration(onSaved) {
   });
   saveBtn.addEventListener('click', () => {
     if (result == null) return;
-    setTapOffset(result);
+    setOffset(result);
     showCurrent();
     saveBtn.hidden = true;
-    toast(`Tap timing set to ${fmtOffset(result)}`);
+    toast(`${kit ? 'Kit' : 'Tap'} timing set to ${fmtOffset(result)}`);
     onSaved?.(result);
     sheet.close();
   });
 
   showCurrent();
-  setStatus('Press Start, listen to four clicks, then tap with the rest.');
+  setStatus(kit ? 'Press Start, listen to four clicks, then hit with the rest.' : 'Press Start, listen to four clicks, then tap with the rest.');
   const sheet = modal({
-    title: 'Tap timing',
+    title: kit ? 'Kit timing' : 'Tap timing',
     content,
     onClose: () => {
       running = false;
       transport.stop();
       window.removeEventListener('keydown', onKey);
+      offKit?.();
     },
   });
   return sheet;

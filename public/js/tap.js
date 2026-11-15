@@ -8,6 +8,7 @@ import { KIT } from './kit.js';
 import { barSlots, slotPos, nearestGap } from './grooves.js';
 import { audioTimeAt } from './audio.js';
 import { store } from './store.js';
+import { midiOffset, onMidiHit } from './midi.js';
 
 /** Seconds either side of a note that count as "on time". */
 export const ON_TIME = 0.045;
@@ -47,9 +48,9 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
   const gap = Object.fromEntries(ids.map((id) => [id, Math.min(...seq.map((p) => nearestGap(p, id)))]));
   const S = { expected, extras: 0 };
 
-  /** Judge a tap (event timeStamp). Returns 'good', 'ok' or 'bad'. */
-  S.hit = (id, ts) => {
-    const t = audioTimeAt(ts) - tapOffset() / 1000;
+  /** Judge a tap (event timeStamp). A kit hit (source 'midi') has its own timing correction. Returns 'good', 'ok' or 'bad'. */
+  S.hit = (id, ts, source) => {
+    const t = audioTimeAt(ts) - (source === 'midi' ? midiOffset() : tapOffset()) / 1000;
     const win = Math.min(0.15, sixteenth * 0.5 * (gap[id] ?? 4));
     let best = null;
     let bestD = Infinity;
@@ -129,6 +130,18 @@ export function keyHandler(getKits, onHit, padsEl) {
     e.preventDefault();
     onHit(k.id, e.timeStamp, padsEl.querySelector(`[data-id="${k.id}"]`));
   };
+}
+
+/**
+ * Listen for hits from an electronic drum kit, for the drums in play.
+ * onHit gets the kit hit as a fourth argument. Returns a function that stops listening.
+ */
+export function kitHandler(getKits, onHit, padsEl) {
+  return onMidiHit((hit) => {
+    const k = getKits().find((x) => x.id === hit.id);
+    if (!k) return; // a drum this exercise doesn't use: let it pass
+    onHit(k.id, hit.ts, padsEl.querySelector(`[data-id="${k.id}"]`), hit);
+  });
 }
 
 export function flash(pad, kind) {

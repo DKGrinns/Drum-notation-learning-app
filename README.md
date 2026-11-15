@@ -28,6 +28,17 @@ Phones and Bluetooth headphones play sound late (often 20–250 ms). **Play → 
 
 Accents, ghost notes and flams are scored for **timing only**: taps on a screen can't measure how hard you hit.
 
+### Electronic drum kits
+
+**Play → Options → Electronic drum kit** (also under Learn → Progress) connects a kit over USB MIDI. It works in Chrome and Edge on Android, Windows, Mac and Chromebooks; iPhone and iPad browsers have no MIDI support.
+
+- The General MIDI drum layout and Roland's are built in, written out in full for the **TD-17KVX with the VH-10 hi-hat**: head and rim on the snare and toms, cross-stick, bow and edge on both crashes, bow, edge and bell on the ride, and open and closed bow and edge on the hi-hat. See the table at the top of `js/midi.js`.
+- The setup screen shows what each hit was heard as. **Learn** next to a drum re-teaches it: hit every part of that pad, then press Done.
+- Kit hits have their own timing correction (**Calibrate with the kit**), separate from screen taps.
+- The app stays silent for kit hits by default, because the module makes the sound.
+- Every drum written in the music is scored. Drums that an exercise doesn't use are ignored, as is the hi-hat pedal.
+- Still timing only: how hard you hit is received but not yet scored.
+
 ### While you practice
 
 The screen stays on while anything is playing. If you switch away from the app, playback stops instead of drifting out of time.
@@ -56,7 +67,9 @@ public/
   js/audio.js         synthesized drums (accents, ghosts, open/closed hi-hat, flams)
                       + look-ahead transport
   js/tap.js           tap-along scoring shared by Learn and Play
-  js/calibrate.js     tap timing calibration sheet
+  js/calibrate.js     tap (and kit) timing calibration sheet
+  js/midi.js          electronic drum kit input: note map, hit-to-learn, connection
+  js/kitsetup.js      kit setup sheet
   js/progress.js      practice history and streaks
   js/backup.js        save and restore a backup file
   js/ui.js            segmented control, stepper, switch, sheets, toast
