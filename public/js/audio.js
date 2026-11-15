@@ -21,6 +21,19 @@ export function getCtx() {
   return ctx;
 }
 
+/** Audio details for a diagnostics report (null until sound has been used). */
+export function audioInfo() {
+  if (!ctx) return null;
+  const o = ctx.getOutputTimestamp?.();
+  return {
+    state: ctx.state,
+    sampleRate: ctx.sampleRate,
+    baseLatencyMs: Math.round((ctx.baseLatency || 0) * 1000),
+    outputLatencyMs: Math.round((ctx.outputLatency || 0) * 1000),
+    hasOutputTimestamp: !!(o && o.performanceTime > 0),
+  };
+}
+
 /** Browsers only allow audio after a user gesture; call this from the first tap. */
 export function unlockAudio() {
   const c = getCtx();

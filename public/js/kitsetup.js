@@ -4,6 +4,8 @@ import { h, modal, row, stepper, toggle, toast } from './ui.js';
 import { KIT, byId } from './kit.js';
 import { fmtOffset } from './tap.js';
 import { openCalibration } from './calibrate.js';
+import { audioInfo } from './audio.js';
+import { diagOn, setDiagOn, diagCounts, clearDiag, downloadDiag } from './diag.js';
 import {
   midiSupported, midiState, midiInputs, enableMidi, disableMidi, midiMap, notesFor, assignNotes, resetMap, isDefaultMap,
   noteName, IGNORE, midiOffset, setMidiOffset, midiSounds, setMidiSounds, onMidiNote, onMidiChange,
@@ -95,6 +97,22 @@ export function openKitSetup(onClose) {
         })),
         row(['App drum sounds', h('span', { class: 'row-sub' }, 'Off: you hear your kit’s own sounds')], toggle(midiSounds(), setMidiSounds, 'App drum sounds for kit hits'))),
       midiState() === 'on' && h('button', { type: 'button', class: 'btn-plain', onClick: () => disableMidi() }, 'Disconnect'),
+      h('div', { class: 'section-label' }, 'Diagnostics'),
+      h('div', { class: 'list' },
+        row(['Record diagnostics', h('span', { class: 'row-sub' }, 'What the kit sends and how runs are scored')], toggle(diagOn(), (v) => {
+          setDiagOn(v);
+          draw();
+        }, 'Record diagnostics')),
+        h('button', {
+          type: 'button', class: 'row row-btn', disabled: !diagCounts().events && !diagCounts().runs,
+          onClick: () => {
+            downloadDiag({ audio: audioInfo(), kit: { state: midiState(), inputs: midiInputs() } });
+            toast('Diagnostics file saved to your downloads');
+          },
+        }, h('span', { class: 'row-main' }, h('span', null, 'Save diagnostics file'),
+          h('span', { class: 'row-sub' }, `${diagCounts().runs} run${diagCounts().runs === 1 ? '' : 's'} and ${diagCounts().events} events recorded`)))),
+      (diagCounts().events || diagCounts().runs) ? h('button', { type: 'button', class: 'btn-plain', onClick: () => { clearDiag(); draw(); } }, 'Clear the recording') : null,
+      h('p', { class: 'footnote' }, 'For troubleshooting. It records data only, never sound, keeps just the most recent runs, and stays on this device unless you save the file and send it.'),
     ].filter(Boolean));
   };
 

@@ -12,6 +12,7 @@
 // anything a kit sends differently.
 import { store } from './store.js';
 import { byId } from './kit.js';
+import { logEvent } from './diag.js';
 
 /** A note the app hears but doesn't score yet (the hi-hat pedal). */
 export const IGNORE = 'none';
@@ -121,6 +122,8 @@ function emitChange() {
 /** Turn one raw MIDI message into a hit. Exported so it can be tested. */
 export function handleMessage(data, timeStamp) {
   const kind = data[0] & 0xf0;
+  // Diagnostics: keep every message except the constant stream of clock ticks.
+  if (data[0] < 0xf0) logEvent('midi', { m: [data[0], data[1], data[2]], ts: Math.round((timeStamp || 0) * 10) / 10 });
   if (kind === 0xb0 && data[1] === HH_PEDAL_CC) {
     S.pedal = data[2];
     return;
@@ -152,6 +155,7 @@ export async function enableMidi() {
   emitChange();
   try {
     S.access = await navigator.requestMIDIAccess();
+    logEvent('note', { text: `MIDI on: ${[...S.access.inputs.values()].map((i) => `${i.manufacturer || '?'} ${i.name}`).join('; ') || 'no inputs'}` });
     S.access.onstatechange = () => {
       attach();
       emitChange();
@@ -159,8 +163,9 @@ export async function enableMidi() {
     attach();
     S.state = 'on';
     store.set('midi.on', true);
-  } catch {
+  } catch (err) {
     S.state = 'denied';
+    logEvent('error', { text: `MIDI access failed: ${err?.message || err}` });
   }
   emitChange();
   return S.state;

@@ -691,7 +691,7 @@ function runDrill(li, ci) {
         else if (ev.type === 'interrupt') stop();
       },
     });
-    D.session = tapSession({ pattern: D.pattern, bars: D.chart?.bars, order: D.chart?.order, ids: D.judge.map((k) => k.id), loops, startTime: transport.startTime, sixteenth: transport.sixteenth });
+    D.session = tapSession({ label: `Learn · Level ${li + 1} · ${c.title} · ${c.bpm} BPM`, pattern: D.pattern, bars: D.chart?.bars, order: D.chart?.order, ids: D.judge.map((k) => k.id), loops, startTime: transport.startTime, sixteenth: transport.sixteenth });
   }
 
   function stop() {

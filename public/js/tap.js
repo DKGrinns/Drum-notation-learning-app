@@ -13,6 +13,7 @@ import { barSlots, slotPos, nearestGap, NOTE } from './grooves.js';
 import { audioTimeAt } from './audio.js';
 import { store } from './store.js';
 import { midiOffset, onMidiHit } from './midi.js';
+import { logRun } from './diag.js';
 
 /** Seconds either side of a note that count as "on time". */
 export const ON_TIME = 0.045;
@@ -31,9 +32,10 @@ export const fmtOffset = (v) => (v === 0 ? '0 ms' : `${v > 0 ? '+' : '−'}${Mat
  * through `loops` times). With bars, result colors are keyed 'bar:drum:slot'.
  * `order` lists the bar numbers in the order they are played (for repeats).
  * toAudioTime turns an event timestamp into audio time (swapped out in tests).
- * @param {{pattern?, bars?: object[], order?: number[], ids: string[], loops: number, startTime: number, sixteenth: number}} o
+ * label names the exercise in a diagnostics recording.
+ * @param {{pattern?, bars?: object[], order?: number[], ids: string[], loops: number, startTime: number, sixteenth: number, label?: string}} o
  */
-export function tapSession({ pattern, bars, order, ids, loops, startTime, sixteenth, toAudioTime = audioTimeAt }) {
+export function tapSession({ pattern, bars, order, ids, loops, startTime, sixteenth, toAudioTime = audioTimeAt, label = '' }) {
   const seq = bars || [pattern];
   const ord = (bars && order) || seq.map((_, i) => i);
   const len = barSlots(seq[0]);
@@ -52,6 +54,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
   // How close together each drum's notes get, which sets how wide a tap's window can be.
   const gap = Object.fromEntries(ids.map((id) => [id, Math.min(...seq.map((p) => nearestGap(p, id)))]));
   const S = { expected, extras: 0 };
+  const taps = []; // every tap as it came in, for diagnostics
 
   /**
    * Judge a tap (event timeStamp). A kit hit (source 'midi') has its own timing
@@ -71,6 +74,9 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
         bestD = d;
       }
     }
+    // t is the corrected time, so a recording can be replayed without knowing the offsets.
+    const round = (x) => Math.round(x * 1e4) / 1e4;
+    taps.push({ id, t: round(t), src: source || 'tap', vel: info?.velocity, open: info?.open || undefined, note: info?.note, d: best ? round(bestD) : null });
     if (!best) {
       S.extras++;
       return 'bad';
@@ -140,7 +146,14 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     const score = Math.max(0, Math.round((100 * (on + 0.5 * (early + late) - 0.25 * S.extras)) / total));
     const colorFor = { on: 'var(--green)', off: 'var(--orange)', miss: 'var(--red)' };
     const colors = Object.fromEntries(Object.entries(byNote).map(([k, v]) => [k, colorFor[v]]));
-    return { score, on, early, late, missed, hits, extras: S.extras, mean: hits ? (sum / hits) * 1000 : 0, colors, expression: expression() };
+    const result = { score, on, early, late, missed, hits, extras: S.extras, mean: hits ? (sum / hits) * 1000 : 0, colors, expression: expression() };
+    logRun({
+      label, ids, loops, startTime, sixteenth,
+      bars: bars || [pattern], order: (bars && order) || null, single: !bars,
+      taps,
+      result: { score, on, early, late, missed, extras: S.extras, mean: Math.round(result.mean), expression: result.expression },
+    });
+    return result;
   };
   return S;
 }

@@ -1,6 +1,11 @@
 import { transport, unlockAudio } from './audio.js';
 import { store } from './store.js';
 import { resumeMidi } from './midi.js';
+import { logEvent } from './diag.js';
+
+// Diagnostics: note anything that goes wrong inside the app.
+window.addEventListener('error', (e) => logEvent('error', { text: `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})` }));
+window.addEventListener('unhandledrejection', (e) => logEvent('error', { text: `Promise: ${e.reason?.message || e.reason}` }));
 import * as learn from './views/learn.js';
 import * as build from './views/build.js';
 import * as quiz from './views/quiz.js';

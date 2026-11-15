@@ -262,6 +262,7 @@ function start() {
     pattern: g.pattern,
     bars,
     order,
+    label: `Play · ${option().name} · ${S.bpm} BPM`,
     ids: usedKits().map((k) => k.id),
     loops: S.loops,
     startTime: transport.startTime,

@@ -90,3 +90,17 @@ Progress and settings are saved in `localStorage`.
 ## Online
 
 Every push to `master` runs the tests and publishes `public/` to GitHub Pages: https://dkgrinns.github.io/Drum-notation-learning-app/
+
+## Diagnostics
+
+For troubleshooting on a real device. In **Electronic drum kit** (Play → Options), switch on **Record diagnostics**, play as normal, then press **Save diagnostics file**.
+
+The file holds every message the kit sent, each scored run in full (what was written, every hit and how it was judged), any errors, and details of the device and audio delay. It records data only, never sound, keeps the most recent 30 runs and 3000 events, and stays on the device unless you save and send it.
+
+To read one:
+
+```bash
+node scripts/replay.mjs path/to/drum-reader-diagnostics-….json
+```
+
+This re-scores each run and prints, per drum, how early or late the hits were and how hard each kind of note was played, plus any kit notes the built-in map doesn't know.
