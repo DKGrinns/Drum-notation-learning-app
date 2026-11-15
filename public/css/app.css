@@ -235,6 +235,20 @@ main { padding: 4px 16px 24px; }
 .expression-chip { padding: 5px 10px; border-radius: 999px; background: var(--fill); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .expression-chip.good { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
 .expression-chip.low { background: color-mix(in srgb, var(--orange) 18%, transparent); color: var(--orange); }
+.dict-grid { display: grid; gap: 4px 3px; align-items: center; margin: 10px 0 4px; }
+.dict-grid .count { text-align: center; font-size: 11px; color: var(--ink3); }
+.dict-grid .count.beat { color: var(--ink); font-weight: 700; }
+.dict-grid .cell { height: 34px; min-width: 0; }
+.dict-grid.locked .cell { pointer-events: none; opacity: 0.75; }
+.dict-label { font-size: 12px; color: var(--ink2); }
+.dict-answer { margin-top: 6px; }
+.tour { padding: 4px 8px 12px; text-align: center; }
+.tour-art { width: 76px; height: 76px; margin: 6px auto 14px; border-radius: 22px; background: var(--blue); color: #fff; display: grid; place-items: center; font-size: 36px; font-weight: 800; }
+.tour h2 { font-size: 22px; margin: 0 0 8px; }
+.tour p { font-size: 16px; line-height: 1.45; color: var(--ink2); margin: 0 0 10px; }
+.tour-dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0; }
+.tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--fill); }
+.tour-dots i.on { background: var(--blue); }
 .kit-setup { padding: 0 4px 8px; }
 .kit-status { display: grid; gap: 8px; padding: 14px; border-radius: 14px; background: var(--fill); font-size: 15px; line-height: 1.4; }
 .kit-status.on { background: color-mix(in srgb, var(--green) 14%, transparent); }

@@ -22,6 +22,7 @@ test('every pad zone of a Roland TD-17KVX reaches the right drum', () => {
     hihat: [42, 22, 46, 26], // VH-10: closed bow/edge, open bow/edge
     crash: [49, 55, 57, 52], // crash 1 and 2, bow and edge
     ride: [51, 59, 53], // bow, edge, bell
+    hhfoot: [44], // the pedal closing
   };
   for (const [id, notes] of Object.entries(kit)) for (const n of notes) assert.equal(send(n)?.id, id, `note ${n}`);
 });
@@ -33,8 +34,8 @@ test('open and closed hi-hat are told apart', () => {
   assert.equal(send(22).open, false);
 });
 
-test('the hi-hat pedal, note-offs and other messages are not hits', () => {
-  assert.equal(send(44), undefined); // pedal: heard, not scored
+test('note-offs, spare pads and other messages are not hits', () => {
+  assert.equal(send(27), undefined); // aux pad: heard, not used
   assert.equal(send(38, 0), undefined); // note-on with no force is a note-off
   assert.equal(send(38, 64, 0x89), undefined); // note-off
   assert.equal(send(4, 90, 0xb9), undefined); // hi-hat pedal position

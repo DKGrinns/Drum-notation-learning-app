@@ -7,6 +7,7 @@ import { transport, playInstrument } from '../audio.js';
 import { tapSession, padButtons, keyHandler, kitHandler, flash, resultDetails, isCalibrated } from '../tap.js';
 import { midiSounds } from '../midi.js';
 import { openKitSetup, kitSummary } from '../kitsetup.js';
+import { openTour } from '../tour.js';
 import { openCalibration } from '../calibrate.js';
 import { logPractice, streak, bestStreak, lastWeek, history } from '../progress.js';
 import { store } from '../store.js';
@@ -183,7 +184,10 @@ function showProgress() {
     h('div', { class: 'list' },
       h('button', { type: 'button', class: 'row row-btn', onClick: () => openKitSetup(() => { kitVal.textContent = kitSummary(); }) },
         h('span', { class: 'row-main' }, h('span', null, 'Electronic drum kit'), h('span', { class: 'row-sub' }, 'Play along on a real kit over USB')),
-        kitVal, svgIcon(ICONS.chevron, 'icon chevron'))),
+        kitVal, svgIcon(ICONS.chevron, 'icon chevron')),
+      h('button', { type: 'button', class: 'row row-btn', onClick: () => openTour() },
+        h('span', { class: 'row-main' }, h('span', null, 'Show the quick tour'), h('span', { class: 'row-sub' }, 'What each tab is for')),
+        svgIcon(ICONS.chevron, 'icon chevron'))),
     h('div', { class: 'section-label' }, 'Backup'),
     h('div', { class: 'list' },
       h('button', { type: 'button', class: 'row row-btn', onClick: () => { downloadBackup(); backupSub.textContent = lastBackup(); } },

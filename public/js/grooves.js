@@ -58,6 +58,7 @@ export const PRESETS = [
   { name: '6/8 groove', level: 'Intermediate', spec: { meter: '6/8', hihat: [0, 1, 2, 4, 5, 6], snare: [4], kick: [0] } },
   { name: '12/8 blues', level: 'Intermediate', spec: { meter: '12/8', ride: T, snare: [4, 12], kick: [0, 2, 8, 10] } },
   { name: 'Ride groove', level: 'Intermediate', spec: { crash: [0], ride: [2, 4, 6, 8, 10, 12, 14], snare: [4, 12], kick: [0, 6, 8] } },
+  { name: 'Ride with hi-hat foot', level: 'Intermediate', spec: { ride: E, snare: [4, 12], kick: [0, 8, 10], hhfoot: [4, 12] } },
   { name: 'Sixteenth hi-hats', level: 'Intermediate', spec: { hihat: S, snare: [4, 12], kick: [0, 8, 10] } },
   { name: 'Syncopated kick', level: 'Intermediate', spec: { hihat: E, snare: [4, 12], kick: [0, 3, 6, 10] } },
   { name: 'Triplet feel', level: 'Intermediate', spec: { trip: ALL, ride: T, snare: [4, 12], kick: [0, 2, 8, 10] } },
@@ -266,6 +267,8 @@ export function randomGroove(level = 0) {
   spec[hands] = [...handSlots];
   spec.snare = [4, 12];
   if (hands === 'ride' && chance(0.6)) spec.crash = [0];
+  // With the right hand on the ride, the left foot often keeps time on the hi-hat pedal.
+  if (hands === 'ride' && level >= 1 && chance(0.5)) spec.hhfoot = [4, 12];
 
   const kickPool = level === 0 ? [2, 6, 8, 10, 14] : [3, 6, 7, 8, 10, 11, 14, 15].concat(level === 2 ? [2, 9, 13] : []);
   const nKicks = level === 0 ? pick([1, 2]) : level === 1 ? pick([2, 3]) : pick([2, 3, 4]);
@@ -286,6 +289,7 @@ export function randomGroove(level = 0) {
     spec.tom2 = [14];
     spec.floor = [15];
     spec.kick = spec.kick.filter((s) => s < 12);
+    if (spec.hhfoot) spec.hhfoot = spec.hhfoot.filter((s) => s < 12);
     spec.crash = [0];
   }
   if (level === 2 && !fill) addDynamics(spec, hands, chance(0.5));

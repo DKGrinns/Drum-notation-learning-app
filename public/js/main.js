@@ -2,6 +2,7 @@ import { transport, unlockAudio } from './audio.js';
 import { store } from './store.js';
 import { resumeMidi } from './midi.js';
 import { logEvent } from './diag.js';
+import { maybeShowTour } from './tour.js';
 
 // Diagnostics: note anything that goes wrong inside the app.
 window.addEventListener('error', (e) => logEvent('error', { text: `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})` }));
@@ -92,6 +93,7 @@ window.addEventListener('keydown', unlock, true);
 
 show(store.get('tab', 'learn'));
 resumeMidi(); // reconnect an electronic drum kit that was set up before
+maybeShowTour();
 
 // Works offline once it has loaded (and can be added to the home screen).
 if ('serviceWorker' in navigator && window.isSecureContext) {

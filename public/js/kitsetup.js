@@ -82,7 +82,7 @@ export function openKitSetup(onClose) {
       statusCard(),
       h('div', { class: 'section-label' }, 'Your drums'),
       h('div', { class: 'list' }, KIT.map(drumRow)),
-      h('p', { class: 'footnote' }, 'The standard layout and Roland’s (including the TD-17 and VH-10 hi-hat) are built in. The hi-hat pedal is heard but not scored yet.'),
+      h('p', { class: 'footnote' }, 'The standard layout and Roland’s (including the TD-17 and VH-10 hi-hat) are built in.'),
       !isDefaultMap() && h('button', { type: 'button', class: 'btn-plain', onClick: () => { learning = null; resetMap(); toast('Back to the built-in layout'); } }, 'Reset to the built-in layout'),
       h('div', { class: 'section-label' }, 'Timing and sound'),
       h('div', { class: 'list' },

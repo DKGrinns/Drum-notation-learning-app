@@ -19,7 +19,7 @@ Once loaded over HTTPS (or on localhost), it works offline and can be added to t
 | **Learn** | A 20-level path: quarter notes, rests, 8ths, half notes and dotted quarters, grooves, 16ths, gallops, dotted 8ths and dotted rests, triplets, the shuffle, toms and fills, reading a chart (bar lines, fills, repeats and endings), ride and crash, 3/4 time, accents, ghost notes, open hi-hat, flams, and 6/8 and 12/8. Each level has an **intro** (short explanations plus quick checks), a **Learn** drill (tap along while you hear the part), a **Practice** drill (click only), and a **Test** (a new pattern from a pool; score 80% to unlock the next level). Up to 3 stars per challenge. The path page shows your **practice streak** and a **Review** list: passed levels come back after 1, 2, 4… days (up to 30). **Progress** (top right) shows streaks and recent scores from every tab, and lets you **save a backup file** of your progress or restore one. Edit the path in `js/curriculum.js`. |
 | **Build** | Tap a step grid and watch it turn into real notation. The grid columns line up with the notes on the staff, with counts (`1 e & a`, `1 trip let`) above. Pick a **time signature** (4/4, 3/4, 6/8, 12/8), make any beat a **triplet**, and use the **Accent / Ghost / Open / Flam** brush to change notes. Turn on **long notes** to write half notes and dotted quarters. Press **+** to add a bar (up to 8); the bars play in order and appear in Play as "My groove". Presets, tempo, metronome, 8th/16th grids. |
 | **Quiz** | Three topics. **Drums**: *Name the note* (see a note, pick the drum) or *Place the note* (see a drum, tap its spot on the staff), in three levels; notes you miss come up more often. **Note values**: name the highlighted note or the rest in a bar. **Counting**: pick the count a highlighted note lands on, in three levels. |
-| **Listen** | Hear a groove, then pick which of three look-alike staffs matches it. After answering, tap any choice to hear how it differs. Beginner / Intermediate / Advanced. |
+| **Listen** | **Pick it**: hear a groove, then pick which of three look-alike staffs matches it; after answering, tap any choice to hear how it differs. **Write it** (dictation): hear a groove and write it on a small grid, then check it against the answer. Beginner / Intermediate / Advanced. |
 | **Play** | Tap along to a groove after a one-bar count-in. Afterwards each note on the staff is colored green, orange, or red, with on-time/early/late/missed counts and a rushing/dragging hint. **Sight-read** options deal a fresh random groove each time: Beginner, Intermediate, Advanced, Shuffle, 3/4, 6/8 and 12/8, and Accents and ghosts. Press **Next groove** after a run for another. **4-bar charts** (the three levels plus each style) are a groove, a variation, the groove again and a fill. **Repeat charts** add a repeat sign with first and second endings: five bars written, eight played. On a phone a long chart scrolls to follow the music. |
 
 ### Tap timing
@@ -36,9 +36,13 @@ With screen taps, accents, ghost notes and flams are scored for **timing only**:
 - The setup screen shows what each hit was heard as. **Learn** next to a drum re-teaches it: hit every part of that pad, then press Done.
 - Kit hits have their own timing correction (**Calibrate with the kit**), separate from screen taps.
 - The app stays silent for kit hits by default, because the module makes the sound.
-- Every drum written in the music is scored. Drums that an exercise doesn't use are ignored, as is the hi-hat pedal.
+- Every drum written in the music is scored, including the **hi-hat pedal** (an x below the staff). Drums that an exercise doesn't use are ignored.
 - After a run, **From your kit** shows how many accents, ghost notes and open (and closed) hi-hats came out right. Loud and soft are judged against your own normal notes on the same drum: an accent is at least 15% harder, a ghost note at most 60% as hard. This is shown beside the timing score, not folded into it.
 - The Roland note numbers were checked against a published TD-17 note list (all 24 zones match), but not yet on a real kit.
+
+### First run
+
+A four-card tour opens the first time the app loads. Replay it from Learn → Progress → Show the quick tour.
 
 ### While you practice
 
@@ -72,6 +76,8 @@ public/
   js/midi.js          electronic drum kit input: note map, hit-to-learn, connection
   js/kitsetup.js      kit setup sheet
   js/progress.js      practice history and streaks
+  js/diag.js          optional diagnostics recording
+  js/tour.js          first-run tour
   js/backup.js        save and restore a backup file
   js/ui.js            segmented control, stepper, switch, sheets, toast
   js/views/*.js       Learn, Build, Quiz, Listen, Play

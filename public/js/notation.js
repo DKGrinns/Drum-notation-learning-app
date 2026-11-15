@@ -566,7 +566,8 @@ export function renderChart(host, { bars, colors = {}, endings = null, full = fa
   const perLine = fits >= 4 ? 4 : fits >= 2 ? 2 : 1;
   const lines = Math.ceil(bars.length / perLine);
   const top = s * (endings ? 7 : 5.6); // room above the staff for cymbals, stems, accents (and ending brackets)
-  const lineH = top + s * 7.6; // …and below it for the kick's stems and rests
+  const lowFoot = bars.some((p) => p.hhfoot?.some(Boolean)); // the hi-hat foot sits below the staff
+  const lineH = top + s * (lowFoot ? 8.6 : 7.6); // …and below it for the kick's stems and rests
 
   const scroller = document.createElement('div');
   scroller.className = 'chart-scroll';

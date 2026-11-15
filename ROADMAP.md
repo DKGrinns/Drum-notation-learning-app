@@ -18,15 +18,16 @@ What's planned, in priority order. Updated 2026-11-14.
 - **Tests** for tap scoring, the kit note map and replaying a recording (18 in total).
 - **Diagnostics**: record kit messages and scored runs to a file; `scripts/replay.mjs` reads it.
 
+- **Hi-hat pedal**: written as an x below the staff, played from the kit's pedal, with a lesson page in the ride level.
+- **Dictation** in Listen ("Write it").
+- **First-run tour**, replayable from Learn → Progress.
+
 ## Next
 
-1. **Dictation** in Listen: hear a groove, write it in the Build grid.
+1. **Test on the real kit and a real phone** (see "Not yet checked"), and tune from a diagnostics file.
 2. **More from the kit**
-   - Check the kit on a real TD-17KVX: every zone, USB on Android and Windows, and whether the loud/soft thresholds feel fair.
-   - Add the hi-hat pedal to the notation and score it.
    - Flams from the kit (two hits close together).
-   - Microphone input for practice pads (knows when you hit, not which drum). Lower priority now.
-   - A short first-run tour, including "connect your kit".
+   - Microphone input for practice pads (knows when you hit, not which drum). Lower priority.
 3. **Longer charts**: 16 bars, repeats and endings written in Build.
 4. **iPhone home-screen icon** (a PNG; the current icon is SVG only).
 5. **Groove library**: save several grooves in Build, share one as a link, export as an image or MIDI file.
@@ -36,4 +37,4 @@ What's planned, in priority order. Updated 2026-11-14.
 
 ## Not yet checked
 
-- Nothing has been tried on a real phone. Tap timing, the wake lock, the backup download and the chart's auto-scroll all need a real device.
+- Nothing has been tried on a real phone or a real kit. Tap timing, the wake lock, the backup and diagnostics downloads, the chart's auto-scroll, MIDI over USB on Android and Windows, and the loud/soft thresholds all need a real device.

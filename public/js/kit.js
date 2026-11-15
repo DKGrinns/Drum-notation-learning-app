@@ -21,6 +21,8 @@ export const KIT = [
     where: 'in the second space up from the bottom' },
   { id: 'kick', name: 'Kick', label: 'Kick', step: 1, head: 'o', family: 'kick', key: ' ', keyLabel: 'Space',
     foot: true, where: 'in the bottom space, with its stem pointing down' },
+  { id: 'hhfoot', name: 'Hi-hat foot', label: 'HH foot', step: -1, head: 'x', family: 'cym', key: 'n',
+    foot: true, where: 'just below the staff, with an x notehead and its stem pointing down' },
 ];
 
 export const byId = Object.fromEntries(KIT.map((k) => [k.id, k]));

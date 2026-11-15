@@ -152,6 +152,11 @@ const VOICES = {
     choke(t);
     metal(t, out, { decay: 0.06, peak: 0.35 * v, hp: 7000 });
   },
+  // The pedal closing the hi-hat: a short, soft "chick" that also cuts off an open hi-hat.
+  hhfoot(t, out, v) {
+    choke(t);
+    metal(t, out, { decay: 0.045, peak: 0.24 * v, hp: 8000 });
+  },
   hihatOpen(t, out, v) {
     choke(t);
     const g = metal(t, out, { decay: 0.45, peak: 0.3 * v, hp: 6000 });

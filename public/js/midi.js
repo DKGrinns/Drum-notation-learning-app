@@ -14,7 +14,7 @@ import { store } from './store.js';
 import { byId } from './kit.js';
 import { logEvent } from './diag.js';
 
-/** A note the app hears but doesn't score yet (the hi-hat pedal). */
+/** A note the app hears but doesn't use (spare pad inputs). */
 export const IGNORE = 'none';
 
 // note number → [app drum, what it is on the kit, 'open' for an open hi-hat]
@@ -39,7 +39,7 @@ const NOTES = {
   22: ['hihat', 'Hi-hat closed, edge'],
   46: ['hihat', 'Hi-hat open, bow', 'open'],
   26: ['hihat', 'Hi-hat open, edge', 'open'],
-  44: [IGNORE, 'Hi-hat pedal (foot close)'],
+  44: ['hhfoot', 'Hi-hat pedal (foot close)'],
   // Crash 1 and crash 2 (CY-12C): bow and edge
   49: ['crash', 'Crash 1 bow'],
   55: ['crash', 'Crash 1 edge'],
