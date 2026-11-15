@@ -132,7 +132,7 @@ function reviewList() {
   const due = LEVELS.map((_, li) => li).filter(reviewDue)
     .sort((a, b) => (rec(a, testIndex(a)).last || 0) - (rec(b, testIndex(b)).last || 0))
     .slice(0, 3);
-  if (!due.length) return null;
+  if (!due.length) return '';
   return h('div', { class: 'review-due' },
     h('div', { class: 'section-label' }, 'Review'),
     h('div', { class: 'list' }, due.map((li) => {
