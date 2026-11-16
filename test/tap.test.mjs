@@ -60,6 +60,22 @@ test('a flam played as two strokes is one note, timed by the second stroke', () 
   assert.deepEqual(r.expression.flams, { ok: 1, total: 3 });
 });
 
+test('a cross-stick and a ride bell are recognised by the note the kit sends', () => {
+  const { pattern } = makeGroove('', { ride: [0, 4, 8, 12], bell: { ride: [0, 8] }, cross: { snare: [4, 12] } });
+  const s = session({ pattern, ids: ['ride', 'snare'] });
+  const play = (id, slot, note) => s.hit(id, at(pattern, slot), 'midi', { velocity: 90, note });
+  play('ride', 0, 53); // bell
+  play('ride', 8, 51); // bow, where the bell was written
+  play('ride', 4, 51);
+  play('ride', 12, 51);
+  play('snare', 4, 37); // cross-stick
+  play('snare', 12, 38); // a normal snare hit instead
+  const r = s.result();
+  assert.equal(r.score, 100);
+  assert.deepEqual(r.expression.bells, { ok: 1, total: 2 });
+  assert.deepEqual(r.expression.crosses, { ok: 1, total: 2 });
+});
+
 test('kit hits are checked for accents, ghost notes and open hi-hat', () => {
   const { pattern } = makeGroove('', {
     hihat: [0, 2, 4, 6, 8, 10, 12], open: { hihat: [14] }, accent: { hihat: [0, 8] },

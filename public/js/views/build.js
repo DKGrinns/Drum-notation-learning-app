@@ -80,7 +80,7 @@ export function mount(root, nav) {
   const brushSeg = segmented(NOTE_TYPES.map((t) => ({ value: t.value, label: t.label })), S.brush, (v) => {
     S.brush = v;
     const t = NOTE_TYPES.find((x) => x.value === v);
-    if (t.on) toast(`${t.label}: tap a ${t.on.length === 1 ? 'hi-hat' : 'snare or tom'} note`);
+    if (t.on) toast(`${t.label}: tap a note on ${t.where}`);
   }, 'Note type');
   brushSeg.classList.add('brush');
   const meterSeg = segmented(Object.keys(METERS).map((m) => ({ value: m, label: m })), meterOf(S.groove.pattern).id, setMeter, 'Time signature');
@@ -136,7 +136,7 @@ export function mount(root, nav) {
       rowBtn('Saved grooves', 'Open one you saved earlier', openLibrary, savedCount),
       rowBtn('Share or export', 'A link, a MIDI file or a picture', openShare)),
     h('p', { class: 'footnote' },
-      'Tap a square to add a note — the staff writes it for you. Pick Accent, Ghost, Open or Flam above, then tap a note to change it. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on), up to 16; your bars play in order and show up in Play as “My groove”. With three or more bars you can turn on a repeat with two endings.'),
+      'Tap a square to add a note — the staff writes it for you. Pick Accent, Ghost, Open, Flam, Cross (cross-stick) or Bell (ride bell) above, then tap a note to change it. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on), up to 16; your bars play in order and show up in Play as “My groove”. With three or more bars you can turn on a repeat with two endings.'),
   );
 
   els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount, repeatSwitch, repeatRow };
@@ -335,7 +335,7 @@ function tapCell(k, slot, cell) {
   if (S.brush === NOTE.HIT) {
     row[slot] = row[slot] ? 0 : NOTE.HIT;
   } else if (!noteTypeFits(type, k.id)) {
-    toast(`${type.label} works on ${type.on.length === 1 ? 'the hi-hat' : 'the snare and toms'}`);
+    toast(`${type.label} works on ${type.where}`);
     return;
   } else {
     row[slot] = row[slot] === S.brush ? NOTE.HIT : S.brush;

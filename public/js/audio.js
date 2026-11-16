@@ -167,6 +167,35 @@ const VOICES = {
     choke(t);
     metal(t, out, { decay: 0.045, peak: 0.24 * v, hp: 8000 });
   },
+  // Cross-stick: the stick laid across the snare, tapping the rim. A dry, woody click.
+  rim(t, out, v) {
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(1700, t);
+    o.frequency.exponentialRampToValueAtTime(950, t + 0.03);
+    const g = env(t, 0.55 * v, 0.06);
+    o.connect(filter('bandpass', 1500, 2)).connect(g).connect(out);
+    o.start(t);
+    o.stop(t + 0.08);
+    const n = noise();
+    const ng = env(t, 0.22 * v, 0.03);
+    n.connect(filter('highpass', 2500)).connect(ng).connect(out);
+    n.start(t);
+    n.stop(t + 0.05);
+  },
+  // The bell of the ride: a clear ping with less wash.
+  rideBell(t, out, v) {
+    metal(t, out, { decay: 0.6, peak: 0.08 * v, hp: 6500 });
+    for (const f of [1950, 2900]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      const g = env(t, 0.11 * v, 0.7);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(t + 0.75);
+    }
+  },
   hihatOpen(t, out, v) {
     choke(t);
     const g = metal(t, out, { decay: 0.45, peak: 0.3 * v, hp: 6000 });
@@ -210,6 +239,8 @@ export function playNote(id, value = NOTE.HIT, t, out) {
   const c = getCtx();
   t = t ?? c.currentTime + 0.005;
   if (value === NOTE.OPEN && id === 'hihat') return playInstrument('hihatOpen', t, LEVEL[value], out);
+  if (value === NOTE.CROSS && id === 'snare') return playInstrument('rim', t, 0.9, out);
+  if (value === NOTE.BELL && id === 'ride') return playInstrument('rideBell', t, 1, out);
   if (value === NOTE.FLAM) playInstrument(id, Math.max(c.currentTime, t - 0.032), 0.4, out);
   playInstrument(id, t, LEVEL[value] ?? 0.9, out);
 }

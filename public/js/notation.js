@@ -76,6 +76,11 @@ function drawHead(g, kind, x, y, s, color, extra = {}, open = null) {
       stroke: color, 'stroke-width': s * 0.18, 'stroke-linecap': 'round', fill: 'none', ...extra,
     });
   }
+  if (kind === 'diamond') {
+    const w = s * 0.62;
+    const half = s * 0.52;
+    return el(g, 'path', { d: `M${x - w} ${y}L${x} ${y - half}L${x + w} ${y}L${x} ${y + half}Z`, fill: color, ...extra });
+  }
   if (open === 'whole') {
     return el(g, 'ellipse', { cx: x, cy: y, rx: s * 0.72, ry: s * 0.44, fill: 'none', stroke: color, 'stroke-width': s * 0.24, ...extra });
   }
@@ -390,10 +395,12 @@ function drawVoice(c, beats, up) {
     }
 
     for (const o of notes) {
-      for (const k of o.insts) {
+      for (const [n, k] of o.insts.entries()) {
         const y = yOf(k.step);
         drawLedgers(g, o.x, k.step, yOf, s);
-        drawHead(g, k.head, o.x, y, s, colors[`${k.id}:${o.slot}`] || 'currentColor', {}, o.hollow ? (o.long === 16 ? 'whole' : 'half') : null);
+        // A cross-stick is an x where the snare goes; the ride's bell is a diamond.
+        const head = o.vals[n] === NOTE.CROSS ? 'x' : o.vals[n] === NOTE.BELL ? 'diamond' : k.head;
+        drawHead(g, head, o.x, y, s, colors[`${k.id}:${o.slot}`] || 'currentColor', {}, o.hollow ? (o.long === 16 ? 'whole' : 'half') : null);
         if (o.dot) {
           const onLine = k.step % 2 === 0;
           el(g, 'circle', { cx: o.x + hw + 0.5 * s, cy: onLine ? y - s / 2 : y, r: s * 0.17, fill: o.ink });

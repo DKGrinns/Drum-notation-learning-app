@@ -22,20 +22,25 @@ export const STEPS = 16;
 export const METERS = {
   '4/4': { id: '4/4', beats: 4, top: 4, bottom: 4, name: 'Four-four' },
   '3/4': { id: '3/4', beats: 3, top: 3, bottom: 4, name: 'Three-four' },
+  '2/4': { id: '2/4', beats: 2, top: 2, bottom: 4, name: 'Two-four' },
+  '5/4': { id: '5/4', beats: 5, top: 5, bottom: 4, name: 'Five-four' },
   '6/8': { id: '6/8', beats: 2, top: 6, bottom: 8, compound: true, name: 'Six-eight' },
   '12/8': { id: '12/8', beats: 4, top: 12, bottom: 8, compound: true, name: 'Twelve-eight' },
 };
 
 /** Note values stored in a slot. */
-export const NOTE = { HIT: 1, ACCENT: 2, GHOST: 3, OPEN: 4, FLAM: 5 };
+export const NOTE = { HIT: 1, ACCENT: 2, GHOST: 3, OPEN: 4, FLAM: 5, CROSS: 6, BELL: 7 };
+const NOTE_MAX = 7;
 
 /** The kinds of note you can write, and which drums they make sense on. */
 export const NOTE_TYPES = [
   { value: NOTE.HIT, id: 'hit', label: 'Note', name: 'note' },
   { value: NOTE.ACCENT, id: 'accent', label: 'Accent', name: 'accent', on: null },
-  { value: NOTE.GHOST, id: 'ghost', label: 'Ghost', name: 'ghost note', on: ['snare', 'tom1', 'tom2', 'floor'] },
-  { value: NOTE.OPEN, id: 'open', label: 'Open', name: 'open hi-hat', on: ['hihat'] },
-  { value: NOTE.FLAM, id: 'flam', label: 'Flam', name: 'flam', on: ['snare', 'tom1', 'tom2', 'floor'] },
+  { value: NOTE.GHOST, id: 'ghost', label: 'Ghost', name: 'ghost note', on: ['snare', 'tom1', 'tom2', 'floor'], where: 'the snare and toms' },
+  { value: NOTE.OPEN, id: 'open', label: 'Open', name: 'open hi-hat', on: ['hihat'], where: 'the hi-hat' },
+  { value: NOTE.FLAM, id: 'flam', label: 'Flam', name: 'flam', on: ['snare', 'tom1', 'tom2', 'floor'], where: 'the snare and toms' },
+  { value: NOTE.CROSS, id: 'cross', label: 'Cross', name: 'cross-stick', on: ['snare'], where: 'the snare' },
+  { value: NOTE.BELL, id: 'bell', label: 'Bell', name: 'ride bell', on: ['ride'], where: 'the ride' },
 ];
 export const noteTypeFits = (type, id) => !type.on || type.on.includes(id);
 
@@ -66,6 +71,10 @@ export const PRESETS = [
   { name: 'Ghost-note funk', level: 'Advanced', spec: { hihat: E, snare: [4, 12], ghost: { snare: [7, 9, 15] }, kick: [0, 3, 10] } },
   { name: 'Flam backbeat', level: 'Advanced', spec: { hihat: E, flam: { snare: [12] }, snare: [4], kick: [0, 8, 10] } },
   { name: 'Triplet fill', level: 'Advanced', spec: { trip: [3], hihat: [0, 2, 4, 6, 8, 10], snare: [4, 12, 13], tom1: [14], kick: [0, 8] } },
+  { name: 'Cross-stick ballad', level: 'Intermediate', spec: { hihat: E, cross: { snare: [4, 12] }, kick: [0, 6, 8] } },
+  { name: 'Ride bell groove', level: 'Intermediate', spec: { ride: E, bell: { ride: Q }, snare: [4, 12], kick: [0, 8, 10] } },
+  { name: '2/4 march', level: 'Beginner', spec: { meter: '2/4', hihat: [0, 2, 4, 6], snare: [4], kick: [0] } },
+  { name: '5/4 groove', level: 'Advanced', spec: { meter: '5/4', hihat: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18], snare: [4, 16], kick: [0, 6, 12] } },
 ];
 
 // ---------- Meter ----------
@@ -93,7 +102,7 @@ export function copyMeta(from, to) {
   return to;
 }
 
-const MARKS = { accent: NOTE.ACCENT, ghost: NOTE.GHOST, open: NOTE.OPEN, flam: NOTE.FLAM };
+const MARKS = { accent: NOTE.ACCENT, ghost: NOTE.GHOST, open: NOTE.OPEN, flam: NOTE.FLAM, cross: NOTE.CROSS, bell: NOTE.BELL };
 
 /**
  * spec: { instrumentId: slots[], meter?, trip?: beats[], long?: true,
@@ -136,7 +145,7 @@ export function normalizeGroove(g) {
     if (!Array.isArray(row)) continue;
     for (let i = 0; i < n; i++) {
       const v = Math.round(Number(row[i]) || 0);
-      pattern[k.id][i] = v >= 1 && v <= 5 ? v : row[i] === true ? 1 : 0;
+      pattern[k.id][i] = v >= 1 && v <= NOTE_MAX ? v : row[i] === true ? 1 : 0;
     }
   }
   if (!isCompound(pattern) && Array.isArray(g.pattern.trip) && g.pattern.trip.some(Boolean)) {

@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { tapSession } from '../public/js/tap.js';
 import { DEFAULT_MAP, noteName } from '../public/js/midi.js';
 
-const TYPE = { 1: 'normal', 2: 'accent', 3: 'ghost', 4: 'open', 5: 'flam' };
+const TYPE = { 1: 'normal', 2: 'accent', 3: 'ghost', 4: 'open', 5: 'flam', 6: 'cross-stick', 7: 'bell' };
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 const median = (a) => (a.length ? [...a].sort((x, y) => x - y)[a.length >> 1] : 0);
 
@@ -21,7 +21,7 @@ export function replayRun(run) {
     ids: run.ids, loops: run.loops, startTime: run.startTime, sixteenth: run.sixteenth,
     toAudioTime: (t) => t, // recorded times are already audio times, corrected for the offsets
   });
-  for (const tap of run.taps) session.hit(tap.id, tap.t, tap.src, { velocity: tap.vel, open: tap.open });
+  for (const tap of run.taps) session.hit(tap.id, tap.t, tap.src, { velocity: tap.vel, open: tap.open, note: tap.note });
   return { result: session.result(), session };
 }
 

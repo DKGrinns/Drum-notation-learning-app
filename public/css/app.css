@@ -628,7 +628,9 @@ body.compact main { padding-top: 8px; }
 .cell.v3.on { opacity: 0.42; }                    /* ghost: a soft note */
 .cell.v4::after { content: 'o'; font-size: 14px; } /* open hi-hat */
 .cell.v5 { background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.6) 0 3px, transparent 3px); } /* flam */
-.segmented.brush button { padding-left: 2px; padding-right: 2px; }
+.segmented.brush button { padding-left: 1px; padding-right: 1px; font-size: 13px; }
+.cell.v6::after { content: '×'; font-size: 15px; }  /* cross-stick */
+.cell.v7::after { content: '◆'; font-size: 10px; }  /* ride bell */
 
 /* ---------- Tap timing (calibration) ---------- */
 .cal-intro { font-size: 15px; line-height: 1.45; margin: 0 4px 14px; }

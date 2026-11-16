@@ -26,15 +26,16 @@ What's planned, in priority order. Updated 2026-11-15.
 
 - **Groove library**: save named grooves in Build, play them in Play, share one as a link, export a MIDI file or a picture.
 - **Longer charts**: 16-bar charts in Play; up to 16 bars and a repeat with two endings in Build.
+- **More notation**: cross-stick, ride bell, and 2/4 and 5/4 time, each with a lesson page, a preset and a check from the kit.
 
 ## Next
 
 1. **Test on the real kit and a real phone** (see "Not yet checked"), and tune from a diagnostics file.
 2. **iPhone home-screen icon** (a PNG; the current icon is SVG only).
-3. **More notation**: cross-stick, rimshot, ride bell, stickings (R/L), ties, 32nd notes, sextuplets, rolls and drags, and 2/4, 5/4 and 7/8.
+3. **More notation**: rimshot, stickings (R/L), ties, 32nd notes, sextuplets, rolls and drags, and 7/8.
 4. **More tests**: the notation layout.
 5. **Microphone input** for practice pads (knows when you hit, not which drum). Lower priority.
 
 ## Not yet checked
 
-- Nothing has been tried on a real phone or a real kit. Tap timing, the wake lock, the backup and diagnostics downloads, the chart's auto-scroll, MIDI over USB on Android and Windows, the loud/soft thresholds and whether a flam on the TD-17 arrives as two separate hits all need a real device. So do the phone's share sheet and the MIDI and picture downloads; the MIDI file has not been opened in drum software yet.
+- Nothing has been tried on a real phone or a real kit. Tap timing, the wake lock, the backup and diagnostics downloads, the chart's auto-scroll, MIDI over USB on Android and Windows, the loud/soft thresholds and whether a flam on the TD-17 arrives as two separate hits whether the TD-17 sends note 37 for a cross-stick and 53 for the ride bell as its note list says, all need a real device. So do the phone's share sheet and the MIDI and picture downloads; the MIDI file has not been opened in drum software yet.

@@ -53,6 +53,16 @@ test('a MIDI file has the right header, tempo and notes', () => {
   assert.deepEqual(bytes.slice(-3), [0xff, 0x2f, 0]);
 });
 
+test('cross-sticks and ride bells keep their own notes', () => {
+  const p = makeGroove('', { meter: '5/4', ride: [0, 4, 8, 12, 16], bell: { ride: [0] }, cross: { snare: [4, 16] } }).pattern;
+  assert.equal(p.ride.length, 20); // five beats
+  assert.deepEqual(decodeGroove(encodeGroove({ name: 'Five', bars: [p], bpm: 90 })).bars, [p]);
+  const text = [...grooveToMidi({ name: 'Five', bars: [p], bpm: 90 })].join(',');
+  assert.ok(text.includes('153,37,90')); // cross-stick
+  assert.ok(text.includes('153,53,100')); // ride bell
+  assert.ok(text.includes('255,88,4,5,2')); // 5/4
+});
+
 test('file names are safe', () => {
   assert.equal(fileName('Rock Beat #1!', 'mid'), 'rock-beat-1.mid');
   assert.equal(fileName('///', 'png'), 'groove.png');

@@ -94,7 +94,7 @@ export function decodeGroove(code) {
 
 /** General MIDI drum notes, which every drum program understands. */
 const GM = { kick: 36, snare: 38, hihat: 42, hhfoot: 44, tom1: 48, tom2: 45, floor: 43, crash: 49, ride: 51 };
-const VELOCITY = { [NOTE.HIT]: 96, [NOTE.ACCENT]: 122, [NOTE.GHOST]: 38, [NOTE.OPEN]: 96, [NOTE.FLAM]: 104 };
+const VELOCITY = { [NOTE.CROSS]: 90, [NOTE.BELL]: 100, [NOTE.HIT]: 96, [NOTE.ACCENT]: 122, [NOTE.GHOST]: 38, [NOTE.OPEN]: 96, [NOTE.FLAM]: 104 };
 const QUARTER = 480; // ticks
 
 /** A number in MIDI's variable-length form. */
@@ -119,7 +119,7 @@ export function grooveToMidi({ name = '', bars: written, bpm = 90, repeat }, loo
       p[k.id].forEach((v, slot) => {
         if (!v || !GM[k.id]) return;
         const t = n * barTicks + Math.round((slotPos(p, slot) * beat) / 4);
-        const note = k.id === 'hihat' && v === NOTE.OPEN ? 46 : GM[k.id];
+        const note = k.id === 'hihat' && v === NOTE.OPEN ? 46 : k.id === 'snare' && v === NOTE.CROSS ? 37 : k.id === 'ride' && v === NOTE.BELL ? 53 : GM[k.id];
         if (v === NOTE.FLAM) notes.push({ t: Math.max(0, t - 30), note, vel: 45 });
         notes.push({ t, note, vel: VELOCITY[v] || 96 });
       });

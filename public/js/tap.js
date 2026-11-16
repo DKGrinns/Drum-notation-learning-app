@@ -102,6 +102,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     if (source === 'midi' && info?.velocity) {
       best.vel = info.velocity;
       best.open = !!info.open;
+      best.note = info.note;
     }
     return Math.abs(bestD) <= ON_TIME ? 'good' : 'ok';
   };
@@ -128,6 +129,9 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
       ghosts: tally(of(NOTE.GHOST), (e) => (normal[e.id] ? e.vel <= normal[e.id] * 0.6 : e.vel <= 45)),
       opens: tally(of(NOTE.OPEN), (e) => e.open),
       flams: tally(of(NOTE.FLAM), (e) => !!e.flam),
+      // These two are told apart by which note the kit sends (37 and 53 on Roland and General MIDI kits).
+      crosses: tally(of(NOTE.CROSS), (e) => e.note === 37),
+      bells: tally(of(NOTE.BELL), (e) => e.note === 53),
       // Closed hi-hats only matter in music that also has open ones.
       closed: hasOpen ? tally(hats.filter((e) => e.value !== NOTE.OPEN), (e) => !e.open) : null,
     };
@@ -246,6 +250,8 @@ function expressionDetails(x) {
     ['Open hi-hat', x.opens, 'Lift your foot for the notes with a circle above them.'],
     ['Closed hi-hat', x.closed, 'Keep the hi-hat closed except where a circle is written.'],
     ['Flams', x.flams, 'Play a flam as two strokes almost together: a soft one just before the main one.'],
+    ['Cross-stick', x.crosses, 'For a cross-stick, lay the stick across the snare and tap the rim with it.'],
+    ['Ride bell', x.bells, 'Play the bell: the raised dome in the middle of the ride.'],
   ].filter((p) => p[1]);
   const weak = parts.find(([, t]) => t.ok / t.total < 0.7);
   return h('div', { class: 'expression' },
