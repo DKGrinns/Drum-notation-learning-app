@@ -123,6 +123,14 @@ export function toggle(checked, onChange, label) {
 }
 
 /** A row in an inset grouped list. */
+/** A 0–100 slider. */
+export function slider(value, onChange, label) {
+  return h('input', {
+    type: 'range', class: 'slider', min: 0, max: 100, step: 5, value, 'aria-label': label,
+    onInput: (e) => onChange(Number(e.target.value)),
+  });
+}
+
 export function row(label, ...right) {
   return h('div', { class: 'row' }, h('span', { class: 'row-main' }, label), ...right);
 }

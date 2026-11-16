@@ -1,6 +1,6 @@
 # Roadmap
 
-What's planned, in priority order. Updated 2026-11-14.
+What's planned, in priority order. Updated 2026-11-15.
 
 ## Done
 
@@ -21,20 +21,19 @@ What's planned, in priority order. Updated 2026-11-14.
 - **Hi-hat pedal**: written as an x below the staff, played from the kit's pedal, with a lesson page in the ride level.
 - **Dictation** in Listen ("Write it").
 - **First-run tour**, replayable from Learn → Progress.
+- **Practice tools** in Play: tap tempo, a tempo trainer, and separate click and drum volumes.
+- **Flams from the kit**: the two strokes of a flam count as one note, timed by the second, and are reported under "From your kit".
 
 ## Next
 
 1. **Test on the real kit and a real phone** (see "Not yet checked"), and tune from a diagnostics file.
-2. **More from the kit**
-   - Flams from the kit (two hits close together).
-   - Microphone input for practice pads (knows when you hit, not which drum). Lower priority.
-3. **Longer charts**: 16 bars, repeats and endings written in Build.
-4. **iPhone home-screen icon** (a PNG; the current icon is SVG only).
-5. **Groove library**: save several grooves in Build, share one as a link, export as an image or MIDI file.
-6. **More notation**: hi-hat foot, cross-stick, rimshot, ride bell, stickings (R/L), ties, 32nd notes, sextuplets, rolls and drags, and 2/4, 5/4 and 7/8.
-7. **Practice tools**: tempo trainer that speeds up as you pass, tap tempo, separate volumes for click and drums.
-8. **More tests**: the notation layout.
+2. **Longer charts**: 16 bars, repeats and endings written in Build.
+3. **iPhone home-screen icon** (a PNG; the current icon is SVG only).
+4. **Groove library**: save several grooves in Build, share one as a link, export as an image or MIDI file.
+5. **More notation**: cross-stick, rimshot, ride bell, stickings (R/L), ties, 32nd notes, sextuplets, rolls and drags, and 2/4, 5/4 and 7/8.
+6. **More tests**: the notation layout.
+7. **Microphone input** for practice pads (knows when you hit, not which drum). Lower priority.
 
 ## Not yet checked
 
-- Nothing has been tried on a real phone or a real kit. Tap timing, the wake lock, the backup and diagnostics downloads, the chart's auto-scroll, MIDI over USB on Android and Windows, and the loud/soft thresholds all need a real device.
+- Nothing has been tried on a real phone or a real kit. Tap timing, the wake lock, the backup and diagnostics downloads, the chart's auto-scroll, MIDI over USB on Android and Windows, the loud/soft thresholds and whether a flam on the TD-17 arrives as two separate hits all need a real device.

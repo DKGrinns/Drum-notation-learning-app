@@ -1,6 +1,16 @@
 // Web Audio drum synth + sample-accurate transport.
 // All drum sounds are synthesized, so there are no audio files to load.
 import { beatsOf, isTrip, NOTE } from './grooves.js';
+import { store } from './store.js';
+
+// Separate volumes (0–1) for the click and for the drum sounds.
+const vol = { click: store.get('vol.click', 1), drums: store.get('vol.drums', 1) };
+export const volume = (which) => vol[which];
+export function setVolume(which, v) {
+  vol[which] = Math.min(1, Math.max(0, v));
+  store.set(`vol.${which}`, vol[which]);
+}
+const gainOf = (v) => v * v; // a slider feels even when loudness follows its square
 
 let ctx = null;
 let master = null;
@@ -188,7 +198,8 @@ const VOICES = {
 /** Play one drum now (or at audio time `t`). */
 export function playInstrument(id, t, velocity = 1, out) {
   const c = getCtx();
-  VOICES[id]?.(t ?? c.currentTime, out || master, velocity);
+  const v = velocity * gainOf(vol.drums);
+  if (v > 0) VOICES[id]?.(t ?? c.currentTime, out || master, v);
 }
 
 /** How loud each kind of note is. */
@@ -203,11 +214,13 @@ export function playNote(id, value = NOTE.HIT, t, out) {
   playInstrument(id, t, LEVEL[value] ?? 0.9, out);
 }
 
-function click(t, accent, out) {
+function click(t, accent, out, full) {
+  const peak = (accent ? 0.5 : 0.32) * (full ? 1 : gainOf(vol.click));
+  if (peak <= 0) return;
   const o = ctx.createOscillator();
   o.type = 'sine';
   o.frequency.value = accent ? 1760 : 1180;
-  const g = env(t, accent ? 0.5 : 0.32, 0.05);
+  const g = env(t, peak, 0.05);
   o.connect(g).connect(out);
   o.start(t);
   o.stop(t + 0.06);
@@ -250,10 +263,11 @@ class Transport {
     this.running = false;
   }
 
-  start({ getBpm, getPattern, loops = Infinity, countInBeats = 0, playGroove = true, metronome = false, onEvent }) {
+  start({ getBpm, getPattern, loops = Infinity, countInBeats = 0, playGroove = true, metronome = false, fullClick = false, onEvent }) {
     this.stop();
     const c = getCtx();
-    this.opts = { getBpm, getPattern, loops, playGroove, metronome, onEvent, countInBeats };
+    // fullClick ignores the click volume (calibration needs the click to be heard).
+    this.opts = { getBpm, getPattern, loops, playGroove, metronome, onEvent, countInBeats, fullClick };
     this.beats = beatsOf(getPattern(0)); // beats per bar (the meter stays put while playing)
     this.bus = c.createGain();
     this.bus.connect(master);
@@ -304,12 +318,12 @@ class Transport {
   }
 
   _schedule(step, t) {
-    const { getPattern, playGroove, metronome, countInBeats } = this.opts;
+    const { getPattern, playGroove, metronome, countInBeats, fullClick } = this.opts;
     if (step < 0) {
       const pos = step + countInBeats * TICKS;
       if (pos % TICKS === 0) {
         const n = pos / TICKS + 1;
-        click(t, (n - 1) % this.beats === 0, this.bus);
+        click(t, (n - 1) % this.beats === 0, this.bus, fullClick);
         this.queue.push({ type: 'count', n, time: t });
       }
       return;
@@ -318,7 +332,7 @@ class Transport {
     const loop = Math.floor(step / (this.beats * TICKS));
     const beat = Math.floor(tick / TICKS);
     const within = tick % TICKS;
-    if (val(metronome) && within === 0) click(t, beat === 0, this.bus);
+    if (val(metronome) && within === 0) click(t, beat === 0, this.bus, fullClick);
     const p = getPattern(loop);
     const per = isTrip(p, beat) ? 4 : 3; // ticks per slot in this beat
     if (within % per) return;

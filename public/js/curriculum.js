@@ -479,7 +479,7 @@ export const LEVELS = [
       { id: 'intro', kind: 'intro', title: 'Meet the flam', pages: [
         { type: 'info', title: 'A tiny note in front',
           body: ['A **flam** has a tiny **grace note** just before the main note. Play it **softly** with one stick, then the main note loud with the other, almost together.',
-            'It sounds like one fat note: **“flam”**. Count and tap the **main** note.'],
+            'It sounds like one fat note: **“flam”**. Count and tap the **main** note. On an electronic kit, play both strokes.'],
           figure: { spec: { snare: [4, 12], flam: { snare: [0, 8] } }, play: 72 } },
         { type: 'count', spec: { snare: [0, 4, 6, 12], flam: { snare: [8] } }, target: ['snare', 8] },
         { type: 'info', title: 'A flam on the backbeat',

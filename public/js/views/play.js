@@ -1,9 +1,9 @@
 // Play: tap along to written grooves and get per-note timing feedback.
 // Sight-reading options deal a new random groove each time.
-import { h, stepper, toggle, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
+import { h, stepper, toggle, slider, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
 import { PRESETS, LEVEL_NAMES, STYLES, makeGroove, randomGroove, randomChart, normalizeGroove, normalizeChart, chartOrder, usedInstruments, chartInstruments, subdivisionLabel, countInFor } from '../grooves.js';
 import { renderPattern, renderChart } from '../notation.js';
-import { transport, playInstrument } from '../audio.js';
+import { transport, playInstrument, volume, setVolume } from '../audio.js';
 import { store } from '../store.js';
 import { tapSession, padButtons, keyHandler, kitHandler, flash, resultDetails, tapOffset, setTapOffset, fmtOffset } from '../tap.js';
 import { midiSounds } from '../midi.js';
@@ -57,6 +57,7 @@ export function mount(root, nav) {
     bpm: store.get('play.bpm', 80),
     loops: store.get('play.loops', 2),
     hear: store.get('play.hear', false),
+    trainer: store.get('play.trainer', false),
     phase: 'idle', // idle | countin | running | results
     session: null,
     colors: {},
@@ -91,6 +92,15 @@ export function mount(root, nav) {
       S.hear = v;
       store.set('play.hear', v);
     }, 'Hear the groove')),
+    row(['Tempo trainer', h('span', { class: 'row-sub' }, `Speeds up ${TRAIN_STEP} BPM each time you score ${TRAIN_PASS}% or more`)], toggle(S.trainer, (v) => {
+      S.trainer = v;
+      store.set('play.trainer', v);
+    }, 'Tempo trainer')),
+    row('Click volume', slider(Math.round(volume('click') * 100), (v) => setVolume('click', v / 100), 'Click volume')),
+    row('Drum volume', slider(Math.round(volume('drums') * 100), (v) => {
+      setVolume('drums', v / 100);
+      playInstrument('snare'); // so you hear the new level
+    }, 'Drum volume')),
     row('Times through', loopsVal, stepper({
       value: S.loops, min: 1, max: 8, label: 'times through',
       onChange: (v) => {
@@ -108,16 +118,27 @@ export function mount(root, nav) {
       kitVal, svgIcon(ICONS.chevron, 'icon chevron')),
   );
 
+  const tempoStepper = stepper({
+    value: S.bpm, min: BPM_MIN, max: BPM_MAX, step: 2, label: 'tempo',
+    onChange: (v) => setBpm(v),
+  });
+  // Tap tempo: tap the button in time and the tempo follows the last few taps.
+  let tapTimes = [];
+  const tapBtn = h('button', {
+    type: 'button', class: 'tap-tempo', 'aria-label': 'Tap tempo: tap in time to set the tempo',
+    onPointerdown: (e) => {
+      if (tapTimes.length && e.timeStamp - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
+      tapTimes.push(e.timeStamp);
+      tapTimes = tapTimes.slice(-5);
+      playInstrument('hihat');
+      if (tapTimes.length < 2) return;
+      const beat = (tapTimes[tapTimes.length - 1] - tapTimes[0]) / (tapTimes.length - 1);
+      setBpm(Math.round(60000 / beat));
+    },
+  }, 'Tap');
   const tempo = h('div', { class: 'tempo' },
     h('div', { class: 'tempo-read' }, bpmVal, h('span', { class: 'tempo-unit' }, 'BPM')),
-    stepper({
-      value: S.bpm, min: 40, max: 200, step: 2, label: 'tempo',
-      onChange: (v) => {
-        S.bpm = v;
-        bpmVal.textContent = v;
-        store.set('play.bpm', v);
-      },
-    }));
+    tapBtn, tempoStepper);
 
   root.append(
     h('div', { class: 'list' },
@@ -133,7 +154,7 @@ export function mount(root, nav) {
       'You’ll hear a bar of clicks, then play along. Use the pads, your keyboard or an electronic drum kit. Calibrate once with the speaker or headphones you practice with.'),
   );
 
-  els = { grooveName, staffHost, overlay, results, startBtn, nextBtn, pads, settings, tempo };
+  els = { grooveName, staffHost, overlay, results, startBtn, nextBtn, pads, settings, tempo, bpmVal, tempoStepper };
   selectGroove(S.sel);
   ro = new ResizeObserver(() => renderStaff());
   ro.observe(staffHost);
@@ -148,6 +169,34 @@ export function unmount() {
   offKit?.();
   ro?.disconnect();
   transport.stop();
+}
+
+const BPM_MIN = 40;
+const BPM_MAX = 200;
+const TRAIN_STEP = 4; // BPM the tempo trainer moves by
+const TRAIN_PASS = 85; // score that earns a faster tempo
+const TRAIN_FAIL = 50; // below this it slows down again
+
+function setBpm(v) {
+  S.bpm = Math.min(BPM_MAX, Math.max(BPM_MIN, v));
+  els.bpmVal.textContent = S.bpm;
+  els.tempoStepper.set(S.bpm);
+  store.set('play.bpm', S.bpm);
+}
+
+/** Tempo trainer: move the tempo after a run and say what happened. */
+function trainTempo(score) {
+  if (!S.trainer) return '';
+  if (score >= TRAIN_PASS) {
+    if (S.bpm >= BPM_MAX) return 'Tempo trainer: you’re at the top speed.';
+    setBpm(S.bpm + TRAIN_STEP);
+    return `Tempo trainer: passed. The next run is at ${S.bpm} BPM.`;
+  }
+  if (score < TRAIN_FAIL && S.bpm > BPM_MIN) {
+    setBpm(S.bpm - TRAIN_STEP);
+    return `Tempo trainer: slowing to ${S.bpm} BPM. Get it clean, then speed up.`;
+  }
+  return `Tempo trainer: stay at ${S.bpm} BPM until you score ${TRAIN_PASS}%.`;
 }
 
 const active = () => S.phase === 'countin' || S.phase === 'running';
@@ -314,14 +363,17 @@ function finish() {
     bestAll[name] = r.score;
     store.set('play.best', bestAll);
   }
-  logPractice({ kind: isRandom() ? 'sight' : 'play', label: name, score: r.score, bpm: S.bpm });
+  const played = S.bpm;
+  logPractice({ kind: isRandom() ? 'sight' : 'play', label: name, score: r.score, bpm: played });
+  const trainer = trainTempo(r.score);
 
   els.results.replaceChildren(
     h('div', { class: 'results-head' },
       h('div', { class: 'big-score' }, `${r.score}`, h('span', null, '%')),
       h('div', { class: 'results-msg' },
         h('div', { class: 'results-title' }, r.score >= 90 ? 'Excellent!' : r.score >= 70 ? 'Solid.' : r.score >= 40 ? 'Getting there.' : 'Try it slower.'),
-        h('div', { class: 'results-sub' }, isBest ? 'New personal best' : `${S.bpm} BPM`))),
+        h('div', { class: 'results-sub' }, isBest ? 'New personal best' : `${played} BPM`))),
+    trainer && h('p', { class: 'trainer-note' }, trainer),
     ...resultDetails(r),
     h('div', { class: 'legend' },
       h('span', { class: 'on' }, 'On time'),

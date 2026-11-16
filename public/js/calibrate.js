@@ -124,6 +124,7 @@ export function openCalibration(onSaved, source = 'tap') {
       countInBeats: 4,
       playGroove: false,
       metronome: true,
+      fullClick: true,
       onEvent: (ev) => {
         if (ev.type === 'count') setStatus('Listen…', String(ev.n));
         else if (ev.type === 'step' && ev.slot % 4 === 0) {

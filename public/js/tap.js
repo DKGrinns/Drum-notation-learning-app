@@ -17,6 +17,8 @@ import { logRun } from './diag.js';
 
 /** Seconds either side of a note that count as "on time". */
 export const ON_TIME = 0.045;
+/** The longest gap (seconds) between the two strokes of a flam. */
+const FLAM_GAP = 0.12;
 
 /** The calibrated tap offset in ms (positive: your taps register late). */
 export const tapOffset = () => store.get('play.offset', 0);
@@ -74,15 +76,29 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
         bestD = d;
       }
     }
+    // A flam is written as one note but played as two strokes almost together. The
+    // second stroke is the main one, so it sets the timing; it isn't an extra hit.
+    const flam = best ? null : expected.find((e) => e.id === id && e.hit && e.value === NOTE.FLAM && !e.flam
+      && t > e.t1 && t - e.t1 <= FLAM_GAP && Math.abs(t - e.time) <= win);
     // t is the corrected time, so a recording can be replayed without knowing the offsets.
     const round = (x) => Math.round(x * 1e4) / 1e4;
-    taps.push({ id, t: round(t), src: source || 'tap', vel: info?.velocity, open: info?.open || undefined, note: info?.note, d: best ? round(bestD) : null });
+    taps.push({ id, t: round(t), src: source || 'tap', vel: info?.velocity, open: info?.open || undefined, note: info?.note, d: best ? round(bestD) : flam ? round(t - flam.time) : null });
+    if (flam) {
+      flam.flam = true;
+      flam.d = t - flam.time;
+      if (source === 'midi' && info?.velocity) {
+        flam.graceVel = flam.vel;
+        flam.vel = info.velocity;
+      }
+      return Math.abs(flam.d) <= ON_TIME ? 'good' : 'ok';
+    }
     if (!best) {
       S.extras++;
       return 'bad';
     }
     best.hit = true;
     best.d = bestD;
+    best.t1 = t;
     if (source === 'midi' && info?.velocity) {
       best.vel = info.velocity;
       best.open = !!info.open;
@@ -111,6 +127,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
       accents: tally(of(NOTE.ACCENT), (e) => e.vel >= 120 || (normal[e.id] ? e.vel >= normal[e.id] * 1.15 : e.vel >= 95)),
       ghosts: tally(of(NOTE.GHOST), (e) => (normal[e.id] ? e.vel <= normal[e.id] * 0.6 : e.vel <= 45)),
       opens: tally(of(NOTE.OPEN), (e) => e.open),
+      flams: tally(of(NOTE.FLAM), (e) => !!e.flam),
       // Closed hi-hats only matter in music that also has open ones.
       closed: hasOpen ? tally(hats.filter((e) => e.value !== NOTE.OPEN), (e) => !e.open) : null,
     };
@@ -228,6 +245,7 @@ function expressionDetails(x) {
     ['Ghost notes', x.ghosts, 'Play ghost notes much softer, with the stick close to the head.'],
     ['Open hi-hat', x.opens, 'Lift your foot for the notes with a circle above them.'],
     ['Closed hi-hat', x.closed, 'Keep the hi-hat closed except where a circle is written.'],
+    ['Flams', x.flams, 'Play a flam as two strokes almost together: a soft one just before the main one.'],
   ].filter((p) => p[1]);
   const weak = parts.find(([, t]) => t.ok / t.total < 0.7);
   return h('div', { class: 'expression' },

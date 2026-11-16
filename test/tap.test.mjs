@@ -44,6 +44,22 @@ test('a chart with a repeat expects each bar as often as it is played', () => {
   assert.equal(r.colors['1:snare:8'], 'var(--green)');
 });
 
+test('a flam played as two strokes is one note, timed by the second stroke', () => {
+  const { pattern } = makeGroove('', { snare: [4], flam: { snare: [0, 8, 12] } });
+  const s = session({ pattern, ids: ['snare'] });
+  const play = (slot, late, velocity) => s.hit('snare', at(pattern, slot, 0, late), 'midi', { velocity });
+  play(0, -0.03, 40); // grace note just before the beat
+  assert.equal(play(0, 0, 100), 'good'); // main stroke on the beat
+  play(4, 0, 90);
+  play(8, 0, 95); // a flam played as a single stroke
+  play(12, -0.03, 40);
+  play(12, 0.2, 90); // far too late to be the same flam
+  const r = s.result();
+  assert.equal(r.extras, 1);
+  assert.equal(r.on, 4);
+  assert.deepEqual(r.expression.flams, { ok: 1, total: 3 });
+});
+
 test('kit hits are checked for accents, ghost notes and open hi-hat', () => {
   const { pattern } = makeGroove('', {
     hihat: [0, 2, 4, 6, 8, 10, 12], open: { hihat: [14] }, accent: { hihat: [0, 8] },
