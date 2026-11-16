@@ -1,5 +1,7 @@
 // Build: tap a step grid and watch it become real notation.
-import { h, segmented, stepper, toggle, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
+import { h, segmented, stepper, toggle, row, sheet, modal, toast, svgIcon, ICONS } from '../ui.js';
+import { loadLibrary, saveToLibrary, deleteFromLibrary, restoreToLibrary, sameBars, hasNotes, grooveToMidi, fileName } from '../library.js';
+import { download, shareGroove, groovePng } from '../export.js';
 import { KIT } from '../kit.js';
 import {
   PRESETS, METERS, NOTE, NOTE_TYPES, noteTypeFits, makeGroove, clonePattern, normalizeGroove, normalizeChart, emptyPattern,
@@ -83,6 +85,17 @@ export function mount(root, nav) {
   const beatToggles = h('div', { class: 'beat-toggles', role: 'group', 'aria-label': 'Triplet beats' });
   const tripRow = row(['Triplets', h('span', { class: 'row-sub' }, 'Three per beat')], beatToggles);
   const longSwitch = toggle(!!S.groove.pattern.long, setLong, 'Long notes');
+  const bpmStepper = stepper({
+    value: S.bpm, min: 40, max: 220, step: 2, label: 'tempo',
+    onChange: (v) => {
+      S.bpm = v;
+      bpmVal.textContent = v;
+      store.set('build.bpm', v);
+    },
+  });
+  const savedCount = h('span', { class: 'row-value' });
+  const rowBtn = (label, sub, onClick, right) => h('button', { type: 'button', class: 'row row-btn', onClick },
+    h('span', { class: 'row-main' }, h('span', null, label), h('span', { class: 'row-sub' }, sub)), right, svgIcon(ICONS.chevron, 'icon chevron'));
 
   root.append(
     h('section', { class: 'card score' },
@@ -94,14 +107,7 @@ export function mount(root, nav) {
       playBtn,
       h('div', { class: 'tempo' },
         h('div', { class: 'tempo-read' }, bpmVal, h('span', { class: 'tempo-unit' }, 'BPM')),
-        stepper({
-          value: S.bpm, min: 40, max: 220, step: 2, label: 'tempo',
-          onChange: (v) => {
-            S.bpm = v;
-            bpmVal.textContent = v;
-            store.set('build.bpm', v);
-          },
-        }))),
+        bpmStepper)),
     h('div', { class: 'section-label' }, 'Write'),
     brushSeg,
     resSeg,
@@ -114,12 +120,18 @@ export function mount(root, nav) {
         S.click = v;
         store.set('build.click', v);
       }, 'Metronome'))),
+    h('div', { class: 'section-label' }, 'Keep and share'),
+    h('div', { class: 'list' },
+      rowBtn('Save this groove', 'Keep it in your saved grooves', saveCurrent),
+      rowBtn('Saved grooves', 'Open one you saved earlier', openLibrary, savedCount),
+      rowBtn('Share or export', 'A link, a MIDI file or a picture', openShare)),
     h('p', { class: 'footnote' },
       'Tap a square to add a note — the staff writes it for you. Pick Accent, Ghost, Open or Flam above, then tap a note to change it. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on); your bars play in order and show up in Play as “My groove”.'),
   );
 
-  els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch };
+  els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount };
   updatePlayBtn();
+  updateSavedCount();
   renderAll();
   ro = new ResizeObserver(() => renderStaff());
   ro.observe(staffHost);
@@ -481,6 +493,112 @@ function stop() {
 function updatePlayBtn() {
   els.playBtn.replaceChildren(svgIcon(S.playing ? ICONS.stop : ICONS.play));
   els.playBtn.setAttribute('aria-label', S.playing ? 'Stop' : 'Play');
+}
+
+// ---------- Saved grooves, sharing and export ----------
+
+/** The groove being written, with its tempo. */
+const current = () => ({ name: S.groove.name, bars: S.bars, bpm: S.bpm });
+const describe = (e) => `${e.bars.length} bar${e.bars.length === 1 ? '' : 's'} · ${meterOf(e.bars[0]).id} · ${e.bpm} BPM`;
+
+function updateSavedCount() {
+  const n = loadLibrary().length;
+  els.savedCount.textContent = n || '';
+}
+
+function saveCurrent() {
+  if (!hasNotes(S.bars)) return toast('Nothing to save yet — add some notes first');
+  const typed = window.prompt('Name this groove', S.groove.name === 'My groove' ? '' : S.groove.name);
+  if (typed == null) return;
+  const e = saveToLibrary({ ...current(), name: typed });
+  if (!e) return toast('Couldn’t save the groove');
+  S.groove.name = e.name;
+  els.name.textContent = e.name;
+  save();
+  updateSavedCount();
+  toast(`Saved “${e.name}”`);
+}
+
+/**
+ * Put a saved or shared groove ({ name, bars, bpm }) on the page. Work that
+ * hasn't been saved is kept in the saved grooves first, so nothing is lost.
+ */
+export function openGroove(e) {
+  if (S.playing) stop();
+  const prev = snapshot();
+  const unsaved = S.groove.name === 'My groove' && hasNotes(S.bars) && !loadLibrary().some((x) => sameBars(x.bars, S.bars));
+  if (unsaved) saveToLibrary({ name: 'Unsaved groove', bars: S.bars, bpm: S.bpm });
+  S.bars = e.bars.map(clonePattern);
+  S.bar = 0;
+  S.groove = { name: e.name, pattern: S.bars[0] };
+  S.bpm = e.bpm;
+  els.bpmVal.textContent = S.bpm;
+  els.bpmStepper.set(S.bpm);
+  store.set('build.bpm', S.bpm);
+  fitRes();
+  save();
+  renderAll();
+  updateSavedCount();
+  toast(unsaved ? `Opened “${e.name}”. Your old one is in Saved grooves.` : `Opened “${e.name}”`, { label: 'Undo', onClick: () => restore(prev) });
+}
+
+function openLibrary() {
+  const body = h('div', { class: 'lib' });
+  const m = modal({ title: 'Saved grooves', content: body, onClose: updateSavedCount });
+  const draw = () => {
+    const list = loadLibrary();
+    body.replaceChildren(list.length
+      ? h('div', { class: 'list' }, list.map((e, i) => h('div', { class: 'row lib-row' },
+        h('button', {
+          type: 'button', class: 'lib-open',
+          onClick: () => {
+            m.close();
+            openGroove(e);
+          },
+        }, h('span', { class: 'row-main' }, h('span', null, e.name), h('span', { class: 'row-sub' }, describe(e)))),
+        h('button', {
+          type: 'button', class: 'lib-del', 'aria-label': `Delete ${e.name}`,
+          onClick: () => {
+            deleteFromLibrary(e.id);
+            draw();
+            toast(`Deleted “${e.name}”`, {
+              label: 'Undo',
+              onClick: () => {
+                restoreToLibrary(e, i);
+                if (body.isConnected) draw();
+                updateSavedCount();
+              },
+            });
+          },
+        }, 'Delete'))))
+      : h('p', { class: 'footnote' }, 'No saved grooves yet. Write one, then press “Save this groove”.'));
+  };
+  draw();
+}
+
+function openShare() {
+  if (!hasNotes(S.bars)) return toast('Nothing to share yet — add some notes first');
+  const g = current();
+  sheet({
+    title: 'Share or export',
+    items: [
+      { label: 'Share a link', detail: 'Opens this groove in Drum Reader on any device', onClick: () => shareGroove(g) },
+      {
+        label: 'Save as a MIDI file', detail: 'For drum software and recording programs',
+        onClick: () => {
+          download(grooveToMidi(g), fileName(g.name, 'mid'), 'audio/midi');
+          toast('MIDI file saved to your downloads');
+        },
+      },
+      {
+        label: 'Save as a picture', detail: 'The written music, to print or send',
+        onClick: () => groovePng(g).then((blob) => {
+          download(blob, fileName(g.name, 'png'));
+          toast('Picture saved to your downloads');
+        }).catch(() => toast('Couldn’t make the picture')),
+      },
+    ],
+  });
 }
 
 function clear() {

@@ -3,6 +3,8 @@ import { store } from './store.js';
 import { resumeMidi } from './midi.js';
 import { logEvent } from './diag.js';
 import { maybeShowTour } from './tour.js';
+import { decodeGroove } from './library.js';
+import { toast } from './ui.js';
 
 // Diagnostics: note anything that goes wrong inside the app.
 window.addEventListener('error', (e) => logEvent('error', { text: `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})` }));
@@ -93,7 +95,22 @@ window.addEventListener('keydown', unlock, true);
 
 show(store.get('tab', 'learn'));
 resumeMidi(); // reconnect an electronic drum kit that was set up before
-maybeShowTour();
+
+/** A shared link carries a groove after "#g=". Open it in Build. */
+function openShared() {
+  if (!location.hash.startsWith('#g=')) return false;
+  const g = decodeGroove(location.hash.slice(3));
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!g) {
+    toast('That groove link didn’t work');
+    return false;
+  }
+  show('build');
+  build.openGroove(g);
+  return true;
+}
+if (!openShared()) maybeShowTour();
+window.addEventListener('hashchange', openShared);
 
 // Works offline once it has loaded (and can be added to the home screen).
 if ('serviceWorker' in navigator && window.isSecureContext) {

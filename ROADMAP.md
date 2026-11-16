@@ -24,16 +24,17 @@ What's planned, in priority order. Updated 2026-11-15.
 - **Practice tools** in Play: tap tempo, a tempo trainer, and separate click and drum volumes.
 - **Flams from the kit**: the two strokes of a flam count as one note, timed by the second, and are reported under "From your kit".
 
+- **Groove library**: save named grooves in Build, play them in Play, share one as a link, export a MIDI file or a picture.
+
 ## Next
 
 1. **Test on the real kit and a real phone** (see "Not yet checked"), and tune from a diagnostics file.
 2. **Longer charts**: 16 bars, repeats and endings written in Build.
 3. **iPhone home-screen icon** (a PNG; the current icon is SVG only).
-4. **Groove library**: save several grooves in Build, share one as a link, export as an image or MIDI file.
-5. **More notation**: cross-stick, rimshot, ride bell, stickings (R/L), ties, 32nd notes, sextuplets, rolls and drags, and 2/4, 5/4 and 7/8.
-6. **More tests**: the notation layout.
-7. **Microphone input** for practice pads (knows when you hit, not which drum). Lower priority.
+4. **More notation**: cross-stick, rimshot, ride bell, stickings (R/L), ties, 32nd notes, sextuplets, rolls and drags, and 2/4, 5/4 and 7/8.
+5. **More tests**: the notation layout.
+6. **Microphone input** for practice pads (knows when you hit, not which drum). Lower priority.
 
 ## Not yet checked
 
-- Nothing has been tried on a real phone or a real kit. Tap timing, the wake lock, the backup and diagnostics downloads, the chart's auto-scroll, MIDI over USB on Android and Windows, the loud/soft thresholds and whether a flam on the TD-17 arrives as two separate hits all need a real device.
+- Nothing has been tried on a real phone or a real kit. Tap timing, the wake lock, the backup and diagnostics downloads, the chart's auto-scroll, MIDI over USB on Android and Windows, the loud/soft thresholds and whether a flam on the TD-17 arrives as two separate hits all need a real device. So do the phone's share sheet and the MIDI and picture downloads; the MIDI file has not been opened in drum software yet.

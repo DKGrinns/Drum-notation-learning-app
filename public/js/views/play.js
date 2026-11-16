@@ -11,6 +11,7 @@ import { openKitSetup, kitSummary } from '../kitsetup.js';
 import { openCalibration } from '../calibrate.js';
 import { logPractice } from '../progress.js';
 import { loadMyGroove, loadMyChart } from './build.js';
+import { loadLibrary } from '../library.js';
 
 export const title = 'Play';
 
@@ -35,6 +36,10 @@ function grooveOptions() {
     mine
       ? { key: 'my', name: 'My groove', detail: `From the Build tab · ${mine.bars.length} bars`, chart: mine, groove: { name: mine.name, pattern: mine.bars[0] } }
       : { key: 'my', name: 'My groove', detail: 'From the Build tab', groove: loadMyGroove() },
+    ...loadLibrary().map((e) => {
+      const base = { key: `lib:${e.id}`, name: e.name, detail: `Saved groove · ${e.bars.length} bar${e.bars.length === 1 ? '' : 's'}`, groove: { name: e.name, pattern: e.bars[0] } };
+      return e.bars.length > 1 ? { ...base, chart: { name: e.name, bars: e.bars } } : base;
+    }),
     ...LEVEL_NAMES.map((lv, i) => chartOpt(`c${i}`, i, false, `4-bar chart · ${lv}`, 'Four bars ending in a fill')),
     ...LEVEL_NAMES.map((lv, i) => chartOpt(`e${i}`, i, true, `Repeat chart · ${lv}`, 'Eight bars: a repeat with two endings')),
     ...STYLES.map((st) => chartOpt(`cs:${st.id}`, st.id, false, `4-bar chart · ${st.name}`, 'Four bars ending in a fill')),

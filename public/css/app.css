@@ -253,6 +253,11 @@ main { padding: 4px 16px 24px; }
 .tour-dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0; }
 .tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--fill); }
 .tour-dots i.on { background: var(--blue); }
+.lib { padding: 0 4px 8px; }
+.lib-row { gap: 8px; }
+.lib-open { flex: 1; min-width: 0; display: flex; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: inherit; }
+.lib-del { flex: none; border: 0; background: none; color: var(--red); font: inherit; font-size: 15px; padding: 8px 0 8px 10px; }
+.lib-del:active, .lib-open:active { opacity: 0.5; }
 .kit-setup { padding: 0 4px 8px; }
 .kit-status { display: grid; gap: 8px; padding: 14px; border-radius: 14px; background: var(--fill); font-size: 15px; line-height: 1.4; }
 .kit-status.on { background: color-mix(in srgb, var(--green) 14%, transparent); }
@@ -455,11 +460,11 @@ main { padding: 4px 16px 24px; }
   background: color-mix(in srgb, var(--card) 90%, transparent);
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
-  font-size: 15px; font-weight: 500; white-space: nowrap;
+  font-size: 15px; font-weight: 500; width: max-content; max-width: calc(100vw - 24px); box-sizing: border-box;
   transition: opacity 0.25s, transform 0.25s;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
-.toast button { border: 0; background: none; color: var(--blue); font-weight: 600; padding: 0; }
+.toast button { border: 0; background: none; color: var(--blue); font-weight: 600; padding: 0; flex: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
