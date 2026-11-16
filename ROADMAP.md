@@ -33,6 +33,7 @@ What's planned, in priority order. Updated 2026-11-15.
 - **Microphone input**: play along on a practice pad or an acoustic drum; a hit counts for whichever note is due.
 - **7/8 time**: seven 8ths grouped 2 + 2 + 3. Beats can now differ in length.
 - **32nd notes and sextuplets**: any beat can be split twice as fine.
+- **Looks**: Studio Gray and Studio Dark (after Ableton Live) and Groovebox (after Maschine), chosen in Learn → Progress.
 
 ## Next
 

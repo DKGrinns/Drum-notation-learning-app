@@ -44,6 +44,14 @@ With screen taps, accents, ghost notes and flams are scored for **timing only**:
 
 **Play → Options → Microphone** lets you play along on a practice pad or an acoustic drum. The app listens for hits (nothing is recorded or sent anywhere). A microphone can tell when you hit but not which drum, so each hit counts for whichever note is due. Wear headphones, or it will hear the app's own click. It has its own sensitivity setting and timing calibration.
 
+### Appearance
+
+**Learn → Progress → Look** changes the whole app's style:
+
+- **Classic**: the original, light or dark to match your device.
+- **Studio Gray** and **Studio Dark**: flat mid-grey panels with orange and cyan, modelled on Ableton Live. The greys and accents are the values in Live 11's own Mid Light and Mid Dark theme files (listed beside each colour in `css/themes.css`).
+- **Groovebox**: near-black with white lit buttons and pads that glow in their drum's colour, in the spirit of NI Maschine. Maschine's colours aren't published, so these were chosen by eye.
+
 ### First run
 
 A four-card tour opens the first time the app loads. Replay it from Learn → Progress → Show the quick tour.
@@ -77,6 +85,7 @@ public/
                       + look-ahead transport
   js/tap.js           tap-along scoring shared by Learn and Play
   js/calibrate.js     tap (and kit) timing calibration sheet
+  js/theme.js         the look picker (colours are in css/themes.css)
   js/midi.js          electronic drum kit input: note map, hit-to-learn, connection
   js/mic.js           microphone input (mic-worklet.js finds the hits, micsetup.js is its sheet)
   js/kitsetup.js      kit setup sheet

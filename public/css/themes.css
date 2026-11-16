@@ -1,0 +1,162 @@
+/* Optional looks, chosen in Learn → Progress → Appearance. Each one only re-colours
+   the app's variables and adjusts a few shapes; app.css holds the layout. */
+
+/* ---------- Studio Gray and Studio Dark ----------
+   Modelled on Ableton Live's Mid Light and Mid Dark themes. The greys and accents
+   are the values in Live 11's own theme files (noted beside each). Text-sized
+   colours are darkened where Live's would be too faint to read on a staff. */
+
+:root[data-theme="studio"] {
+  color-scheme: light;
+  --bg: #8f8f8f;              /* SurfaceBackground */
+  --card: #b7b7b7;            /* ControlBackground */
+  --well: #dcdcdc;            /* ControlTextBack: the light field the music sits on */
+  --ink: #000000;             /* ControlForeground */
+  --ink2: rgba(0, 0, 0, 0.64);
+  --ink3: rgba(0, 0, 0, 0.4);
+  --sep: rgba(0, 0, 0, 0.28);
+  --fill: rgba(0, 0, 0, 0.13);
+  --fill2: rgba(0, 0, 0, 0.22);
+  --seg-on: #ffb100;          /* ChosenDefault: anything switched on */
+  --on-seg: #000000;
+  --bar: rgba(112, 112, 112, 0.95); /* Desktop */
+  --blue: #ffb100;
+  --on-accent: #000000;
+  --link: #0b3ea8;            /* ChosenPreListen (#3873ff), darkened for text */
+  --green: #0a8f4e;           /* ChosenPlay (#18e27d), darkened */
+  --orange: #c9500a;          /* ChosenAlert (#ff712e), darkened */
+  --red: #cf2e1f;             /* ChosenRecord (#ff563f), darkened */
+  --indigo: #4a54d8;          /* Operator3 (#6571f6), darkened */
+  --cym: #55def6;             /* ChosenAlternative */
+  --drum: #ffb100;
+  --kick: #ff712e;            /* ChosenAlert */
+  --on-cell: #000000;
+  --tab: #d2d2d2;
+  --frame: #444444;           /* ControlContrastFrame */
+  --shadow: none;
+  --radius: 2px;
+}
+
+:root[data-theme="studio-dark"] {
+  color-scheme: dark;
+  --bg: #4f4f4f;              /* SurfaceBackground */
+  --card: #3c3c3c;            /* ControlBackground */
+  --well: #2d2d2d;            /* SurfaceArea */
+  --ink: #e0e0e0;             /* ControlForeground */
+  --ink2: rgba(224, 224, 224, 0.64);
+  --ink3: rgba(224, 224, 224, 0.36);
+  --sep: rgba(0, 0, 0, 0.5);
+  --fill: rgba(0, 0, 0, 0.2);
+  --fill2: rgba(0, 0, 0, 0.32);
+  --seg-on: #f39420;          /* ChosenDefault */
+  --on-seg: #141414;
+  --bar: rgba(45, 45, 45, 0.96);
+  --blue: #f39420;
+  --on-accent: #141414;
+  --link: #8ccad8;            /* SelectionBackground */
+  --green: #00d977;           /* ChosenPlay (#00ff81), a touch calmer */
+  --orange: #ff9a52;          /* ChosenAlert (#ff7f42), lightened */
+  --red: #ff5a4f;             /* ChosenRecord (#e0332a), lightened */
+  --indigo: #8a94ff;          /* Operator3, lightened */
+  --cym: #33bfdb;             /* ChosenAlternative */
+  --drum: #f39420;
+  --kick: #e0d825;            /* Operator1 */
+  --on-cell: #141414;
+  --tab: #9a9a9a;
+  --frame: #141414;           /* ControlContrastFrame */
+  --shadow: none;
+  --radius: 2px;
+}
+
+/* Flat and square, with thin dark frames, like Live's panels. */
+:root[data-theme^="studio"] *,
+:root[data-theme^="studio"] *::before,
+:root[data-theme^="studio"] *::after { border-radius: 2px !important; }
+:root[data-theme^="studio"] :is(.card, .list, .pad, .segmented, .stepper, .btn-primary, .sheet, .toast, .tap-tempo) {
+  border: 1px solid var(--frame);
+  box-shadow: none;
+}
+:root[data-theme^="studio"] .card.score,
+:root[data-theme^="studio"] .choice,
+:root[data-theme^="studio"] .fig { background: var(--well); }
+:root[data-theme^="studio"] .nav { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg); }
+:root[data-theme^="studio"] .nav-btn {
+  color: var(--ink); font-size: 14px; font-weight: 600;
+  background: var(--card); border: 1px solid var(--frame); padding: 4px 10px;
+}
+:root[data-theme^="studio"] .large-title { font-size: 26px; line-height: 32px; letter-spacing: 0; }
+:root[data-theme^="studio"] .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; border-top: 1px solid var(--frame); }
+:root[data-theme^="studio"] .tab.on { color: var(--blue); }
+:root[data-theme^="studio"] .switch { background: var(--fill2); border: 1px solid var(--frame); }
+:root[data-theme^="studio"] .switch::after { background: var(--frame); box-shadow: none; top: 1px; left: 1px; }
+:root[data-theme^="studio"] .switch:checked { background: var(--blue); }
+:root[data-theme^="studio"] .btn-primary { font-size: 15px; }
+:root[data-theme^="studio"] .play-btn { box-shadow: none; border: 1px solid var(--frame); }
+:root[data-theme^="studio"] .section-label { font-size: 12px; letter-spacing: 0.04em; margin-left: 4px; }
+:root[data-theme^="studio"] .cell { margin: 0 1px; }
+:root[data-theme^="studio"] .pad::before { width: 100%; height: 5px; top: 0; left: 0; }
+:root[data-theme^="studio"] .notation .playhead { fill: var(--blue); opacity: 0.3; }
+
+/* ---------- Groovebox ----------
+   In the spirit of Native Instruments' Maschine: near-black panels, white lit
+   buttons, and pads that glow in their own colour. Maschine's colours aren't
+   published, so these are chosen by eye, not copied. */
+
+:root[data-theme="groove"] {
+  color-scheme: dark;
+  --bg: #131313;
+  --card: #232323;
+  --well: #1a1a1a;
+  --ink: #f2f2f2;
+  --ink2: rgba(242, 242, 242, 0.6);
+  --ink3: rgba(242, 242, 242, 0.32);
+  --sep: rgba(255, 255, 255, 0.1);
+  --fill: rgba(255, 255, 255, 0.07);
+  --fill2: rgba(255, 255, 255, 0.14);
+  --seg-on: #f2f2f2;
+  --on-seg: #111111;
+  --bar: rgba(15, 15, 15, 0.94);
+  --blue: #f2f2f2;            /* lit white buttons */
+  --on-accent: #111111;
+  --link: #ff9a2e;
+  --green: #3ddc84;
+  --orange: #ffa62b;
+  --red: #ff4d4d;
+  --indigo: #8f6bff;
+  --cym: #ffb52e;
+  --drum: #2fb8ff;
+  --kick: #ff4f9a;
+  --on-cell: #111111;
+  --tab: #777777;
+  --shadow: none;
+  --radius: 6px;
+}
+:root[data-theme="groove"] :is(.btn-primary, .stepper, .stepper button, .segmented, .segmented button, .cell, .beat-toggle, .tap-tempo, .toast, .answer, .choice, .kit-status, .kit-monitor) { border-radius: 5px; }
+:root[data-theme="groove"] :is(.card, .list) { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+:root[data-theme="groove"] .card.score { background: var(--well); }
+:root[data-theme="groove"] .large-title { text-transform: uppercase; font-size: 26px; line-height: 34px; letter-spacing: 0.06em; }
+:root[data-theme="groove"] .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; }
+:root[data-theme="groove"] .btn-primary { text-transform: uppercase; font-size: 14px; letter-spacing: 0.1em; }
+:root[data-theme="groove"] .btn-primary.stop { color: #ffffff; }
+:root[data-theme="groove"] .nav-btn { text-transform: uppercase; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; }
+:root[data-theme="groove"] .tab { text-transform: uppercase; letter-spacing: 0.08em; font-size: 9px; }
+:root[data-theme="groove"] .switch:checked { background: var(--link); }
+/* Pads glow in their drum's colour and light up white when struck. */
+:root[data-theme="groove"] .pad {
+  --pad: var(--drum);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--pad) 18%, #171717);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pad) 60%, transparent), inset 0 0 28px color-mix(in srgb, var(--pad) 22%, transparent);
+}
+:root[data-theme="groove"] .pad.cym { --pad: var(--cym); }
+:root[data-theme="groove"] .pad.kick { --pad: var(--kick); }
+:root[data-theme="groove"] .pad::before { display: none; }
+:root[data-theme="groove"] .pad-name { text-transform: uppercase; font-size: 14px; letter-spacing: 0.1em; color: color-mix(in srgb, var(--pad) 55%, #ffffff); }
+:root[data-theme="groove"] .pad.hit { animation: padlit 0.35s ease-out; }
+@keyframes padlit {
+  from { background: color-mix(in srgb, var(--flash, var(--pad)) 85%, #ffffff); box-shadow: 0 0 22px color-mix(in srgb, var(--flash, var(--pad)) 70%, transparent); }
+}
+:root[data-theme="groove"] .cell.on { box-shadow: 0 0 8px color-mix(in srgb, currentColor 0%, transparent); }
+:root[data-theme="groove"] .cell.on.cym { box-shadow: 0 0 9px color-mix(in srgb, var(--cym) 55%, transparent); }
+:root[data-theme="groove"] .cell.on.drum { box-shadow: 0 0 9px color-mix(in srgb, var(--drum) 55%, transparent); }
+:root[data-theme="groove"] .cell.on.kick { box-shadow: 0 0 9px color-mix(in srgb, var(--kick) 55%, transparent); }

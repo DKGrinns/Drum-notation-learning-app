@@ -13,8 +13,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
+  <script>try { var t = JSON.parse(localStorage.getItem("drumreader.theme")); if (t && t !== "auto") document.documentElement.dataset.theme = t; } catch (e) {}</script>
   <title>Drum Reader</title>
   <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/themes.css">
   <script type="module" src="js/main.js"></script>
 </head>
 <body>
