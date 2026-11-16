@@ -5,9 +5,10 @@ import { PRESETS, LEVEL_NAMES, STYLES, makeGroove, randomGroove, randomChart, ra
 import { renderPattern, renderChart } from '../notation.js';
 import { transport, playInstrument, volume, setVolume } from '../audio.js';
 import { store } from '../store.js';
-import { tapSession, padButtons, keyHandler, kitHandler, flash, resultDetails, tapOffset, setTapOffset, fmtOffset } from '../tap.js';
+import { tapSession, padButtons, keyHandler, kitHandler, micHandler, flash, resultDetails, tapOffset, setTapOffset, fmtOffset } from '../tap.js';
 import { midiSounds } from '../midi.js';
 import { openKitSetup, kitSummary } from '../kitsetup.js';
+import { openMicSetup, micSummary } from '../micsetup.js';
 import { openCalibration } from '../calibrate.js';
 import { logPractice } from '../progress.js';
 import { loadMyGroove, loadMyChart } from './build.js';
@@ -21,6 +22,7 @@ let staff = null;
 let ro = null;
 let onKey = null;
 let offKit = null;
+let offMic = null;
 let navRef = null;
 
 function grooveOptions() {
@@ -83,6 +85,7 @@ export function mount(root, nav) {
   const offsetVal = h('span', { class: 'row-value' }, fmtOffset(tapOffset()));
   const pads = h('div', { class: 'pads' });
   const kitVal = h('span', { class: 'row-value' }, kitSummary());
+  const micVal = h('span', { class: 'row-value' }, micSummary());
   let offsetStepper = null;
   const showOffset = (v) => {
     offsetVal.textContent = fmtOffset(v);
@@ -125,6 +128,9 @@ export function mount(root, nav) {
     h('button', { type: 'button', class: 'row row-btn', onClick: () => openKitSetup(() => { kitVal.textContent = kitSummary(); }) },
       h('span', { class: 'row-main' }, h('span', null, 'Electronic drum kit'), h('span', { class: 'row-sub' }, 'Play along on a real kit over USB')),
       kitVal, svgIcon(ICONS.chevron, 'icon chevron')),
+    h('button', { type: 'button', class: 'row row-btn', onClick: () => openMicSetup(() => { micVal.textContent = micSummary(); }) },
+      h('span', { class: 'row-main' }, h('span', null, 'Microphone'), h('span', { class: 'row-sub' }, 'Play along on a practice pad or acoustic drum')),
+      micVal, svgIcon(ICONS.chevron, 'icon chevron')),
   );
 
   const tempoStepper = stepper({
@@ -160,7 +166,7 @@ export function mount(root, nav) {
     h('div', { class: 'section-label' }, 'Options'),
     settings,
     h('p', { class: 'footnote' },
-      'You’ll hear a bar of clicks, then play along. Use the pads, your keyboard or an electronic drum kit. Calibrate once with the speaker or headphones you practice with.'),
+      'You’ll hear a bar of clicks, then play along. Use the pads, your keyboard, an electronic drum kit, or a practice pad with the microphone. Calibrate once with the speaker or headphones you practice with.'),
   );
 
   els = { grooveName, staffHost, overlay, results, startBtn, nextBtn, pads, settings, tempo, bpmVal, tempoStepper };
@@ -171,11 +177,13 @@ export function mount(root, nav) {
   onKey = keyHandler(usedKits, hit, els.pads);
   window.addEventListener('keydown', onKey);
   offKit = kitHandler(usedKits, hit, els.pads);
+  offMic = micHandler(active, () => S.session, els.pads);
 }
 
 export function unmount() {
   window.removeEventListener('keydown', onKey);
   offKit?.();
+  offMic?.();
   ro?.disconnect();
   transport.stop();
 }

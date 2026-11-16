@@ -4,7 +4,7 @@ import { KIT, byId } from '../kit.js';
 import { makeGroove, subdivision, emptyPattern, copyMeta, slotPos, validSlots, countLabel, isTrip, countInFor, chartOrder } from '../grooves.js';
 import { renderPattern, renderChart, renderSingle } from '../notation.js';
 import { transport, playInstrument } from '../audio.js';
-import { tapSession, padButtons, keyHandler, kitHandler, flash, resultDetails, isCalibrated } from '../tap.js';
+import { tapSession, padButtons, keyHandler, kitHandler, micHandler, flash, resultDetails, isCalibrated } from '../tap.js';
 import { midiSounds } from '../midi.js';
 import { openKitSetup, kitSummary } from '../kitsetup.js';
 import { openTour } from '../tour.js';
@@ -28,6 +28,7 @@ let root = null;
 let nav = null;
 let onKey = null;
 let offKit = null;
+let offMic = null;
 let ro = null;
 
 export function mount(r, n) {
@@ -48,6 +49,8 @@ function cleanup() {
   onKey = null;
   offKit?.();
   offKit = null;
+  offMic?.();
+  offMic = null;
   ro?.disconnect();
   ro = null;
 }
@@ -650,6 +653,7 @@ function runDrill(li, ci) {
   onKey = keyHandler(() => D.judge, hit, pads);
   window.addEventListener('keydown', onKey);
   offKit = kitHandler(() => D.judge, hit, pads);
+  offMic = micHandler(() => active(), () => D.session, pads);
 
   function hit(id, ts, pad, kit) {
     if (!kit || midiSounds()) playInstrument(id); // a kit makes its own sound

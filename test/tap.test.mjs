@@ -75,6 +75,40 @@ test('drags, rolls and ties: extra strokes are part of the note, and a tie is no
   assert.deepEqual(r.expression.rolls, { ok: 1, total: 1 });
 });
 
+test('a microphone hit plays whatever is due, on any drum', () => {
+  const { pattern } = makeGroove('', { hihat: E, snare: [4, 12], kick: [0, 8, 11] });
+  const s = session({ pattern, ids: ['hihat', 'snare', 'kick'] });
+  for (const slot of [0, 2, 4, 6, 8, 10, 11, 12]) assert.equal(s.hitAny(at(pattern, slot), 'mic'), 'good'); // one stroke per moment
+  assert.equal(s.hitAny(at(pattern, 13), 'mic'), 'bad'); // nothing is written there
+  const r = s.result();
+  assert.deepEqual([r.on, r.missed, r.extras], [12, 1, 1]); // only the last hi-hat (slot 14) was left out
+});
+
+test('the microphone listener reports each hit once, at the right moment', async () => {
+  const posted = [];
+  let Detector;
+  Object.assign(globalThis, {
+    sampleRate: 48000, currentTime: 0,
+    AudioWorkletProcessor: class { constructor() { this.port = { postMessage: (m) => posted.push(m) }; } },
+    registerProcessor: (_, cls) => { Detector = cls; },
+  });
+  await import('../public/js/mic-worklet.js');
+  const det = new Detector();
+  const feed = (block, fill) => {
+    globalThis.currentTime = (block * 128) / 48000;
+    det.process([[Float32Array.from({ length: 128 }, (_, i) => fill(i))]]);
+  };
+  for (let b = 0; b < 400; b++) {
+    // Quiet room noise, with a loud hit starting 40 samples into blocks 100 and 300 and ringing for a while.
+    const ringing = (b >= 100 && b < 110) || (b >= 300 && b < 310);
+    feed(b, (i) => (ringing && (b % 100 || i >= 40) ? 0.6 : 0.004) * (i % 2 ? 1 : -1));
+  }
+  const hits = posted.filter((m) => m.hit != null).map((m) => m.hit);
+  assert.equal(hits.length, 2);
+  assert.ok(Math.abs(hits[0] - (100 * 128 + 40) / 48000) < 1e-9);
+  assert.ok(Math.abs(hits[1] - (300 * 128 + 40) / 48000) < 1e-9);
+});
+
 test('a cross-stick and a ride bell are recognised by the note the kit sends', () => {
   const { pattern } = makeGroove('', { ride: [0, 4, 8, 12], bell: { ride: [0, 8] }, cross: { snare: [4, 12] } });
   const s = session({ pattern, ids: ['ride', 'snare'] });

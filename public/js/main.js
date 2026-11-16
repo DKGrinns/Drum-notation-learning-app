@@ -1,6 +1,7 @@
 import { transport, unlockAudio } from './audio.js';
 import { store } from './store.js';
 import { resumeMidi } from './midi.js';
+import { micWanted, enableMic } from './mic.js';
 import { logEvent } from './diag.js';
 import { maybeShowTour } from './tour.js';
 import { decodeGroove } from './library.js';
@@ -87,6 +88,7 @@ for (const t of document.querySelectorAll('.tab')) t.addEventListener('click', (
 // Audio can only start after a user gesture.
 const unlock = () => {
   unlockAudio();
+  if (micWanted()) enableMic(); // the microphone was on last time: switch it back on
   window.removeEventListener('pointerdown', unlock, true);
   window.removeEventListener('keydown', unlock, true);
 };

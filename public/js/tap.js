@@ -14,6 +14,7 @@ import { audioTimeAt } from './audio.js';
 import { store } from './store.js';
 import { midiOffset, onMidiHit } from './midi.js';
 import { logRun } from './diag.js';
+import { micOffset, onMicHit } from './mic.js';
 
 /** Seconds either side of a note that count as "on time". */
 export const ON_TIME = 0.045;
@@ -66,7 +67,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
    * Returns 'good', 'ok' or 'bad'.
    */
   S.hit = (id, ts, source, info) => {
-    const t = toAudioTime(ts) - (source === 'midi' ? midiOffset() : tapOffset()) / 1000;
+    const t = toAudioTime(ts) - (source === 'midi' ? midiOffset() : source === 'mic' ? micOffset() : tapOffset()) / 1000;
     const win = Math.min(0.15, sixteenth * 0.5 * (gap[id] ?? 4));
     let best = null;
     let bestD = Infinity;
@@ -110,6 +111,45 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
       best.note = info.note;
     }
     return Math.abs(bestD) <= ON_TIME ? 'good' : 'ok';
+  };
+
+  // The closest that two notes at different moments get, on any drum.
+  const times = [...new Set(expected.map((e) => e.time))].sort((a, b) => a - b);
+  const tightest = times.reduce((m, x, i) => (i ? Math.min(m, x - times[i - 1]) : m), Infinity);
+
+  /**
+   * Judge a hit that could be any drum (a microphone can't tell which). It plays
+   * whatever is due: every note written at that moment counts as hit.
+   */
+  S.hitAny = (ts, source = 'mic') => {
+    const t = toAudioTime(ts) - (source === 'mic' ? micOffset() : tapOffset()) / 1000;
+    const win = Math.min(0.15, tightest * 0.5);
+    let best = null;
+    for (const e of expected) {
+      if (!e.hit && Math.abs(t - e.time) <= win && (!best || Math.abs(t - e.time) < Math.abs(t - best.time))) best = e;
+    }
+    const round = (x) => Math.round(x * 1e4) / 1e4;
+    taps.push({ id: 'any', t: round(t), src: source, d: best ? round(t - best.time) : null });
+    if (!best) {
+      // The extra strokes of a flam, drag or roll that has already started are part of that note.
+      const more = expected.find((e) => e.hit && e.strokes < (STROKES[e.value] || 1) && t > e.t1
+        && t - e.time <= (e.value === NOTE.ROLL ? sixteenth * 4 : FLAM_GAP * 2));
+      if (more) {
+        more.strokes++;
+        return 'good';
+      }
+      S.extras++;
+      return 'bad';
+    }
+    const d = t - best.time;
+    for (const e of expected) {
+      if (e.hit || e.time !== best.time) continue;
+      e.hit = true;
+      e.d = d;
+      e.t1 = t;
+      e.strokes = 1;
+    }
+    return Math.abs(d) <= ON_TIME ? 'good' : 'ok';
   };
 
   /**
@@ -223,6 +263,18 @@ export function kitHandler(getKits, onHit, padsEl) {
     const k = getKits().find((x) => x.id === hit.id);
     if (!k) return; // a drum this exercise doesn't use: let it pass
     onHit(k.id, hit.ts, padsEl.querySelector(`[data-id="${k.id}"]`), hit);
+  });
+}
+
+/**
+ * Listen for hits heard by the microphone while `isActive()` is true. Each one
+ * goes to getSession().hitAny and flashes every pad. Returns a function that stops listening.
+ */
+export function micHandler(isActive, getSession, padsEl) {
+  return onMicHit((m) => {
+    if (!isActive()) return;
+    const kind = getSession().hitAny(m.ts, 'mic');
+    for (const pad of padsEl.querySelectorAll('.pad')) flash(pad, kind);
   });
 }
 

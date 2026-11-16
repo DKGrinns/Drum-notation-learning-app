@@ -7,6 +7,7 @@ import { emptyPattern } from './grooves.js';
 import { transport, audioTimeAt, playInstrument } from './audio.js';
 import { tapOffset, setTapOffset, fmtOffset } from './tap.js';
 import { midiOffset, setMidiOffset, onMidiHit } from './midi.js';
+import { micOffset, setMicOffset, onMicHit } from './mic.js';
 
 const BPM = 90;
 const CLICKS = 16; // clicks to tap along with (after a 4-click count-in)
@@ -15,26 +16,29 @@ const MIN_TAPS = 8;
 
 /**
  * Open the calibration sheet. onSaved(ms) runs when a new offset is saved.
- * source 'kit' measures hits on an electronic drum kit instead of taps.
+ * source 'kit' measures hits on an electronic drum kit instead of taps, and
+ * 'mic' hits heard by the microphone.
  */
 export function openCalibration(onSaved, source = 'tap') {
-  const kit = source === 'kit';
-  const getOffset = kit ? midiOffset : tapOffset;
-  const setOffset = kit ? setMidiOffset : setTapOffset;
+  const mic = source === 'mic';
+  const kit = source === 'kit' || mic; // either way the hits come from outside the screen
+  const getOffset = mic ? micOffset : kit ? midiOffset : tapOffset;
+  const setOffset = mic ? setMicOffset : kit ? setMidiOffset : setTapOffset;
   let taps = [];
   let running = false;
   let result = null;
 
   const status = h('div', { class: 'cal-status' });
   const count = h('div', { class: 'cal-count' });
-  const pad = h('button', { type: 'button', class: 'cal-pad', 'aria-label': 'Tap', disabled: kit }, kit ? 'Hit your snare' : 'Tap');
+  const pad = h('button', { type: 'button', class: 'cal-pad', 'aria-label': 'Tap', disabled: kit }, mic ? 'Hit your pad' : kit ? 'Hit your snare' : 'Tap');
   const startBtn = h('button', { type: 'button', class: 'btn-primary' }, 'Start');
   const saveBtn = h('button', { type: 'button', class: 'btn-primary', hidden: true }, 'Use this timing');
   const current = h('p', { class: 'footnote cal-note' });
 
   const content = h('div', { class: 'cal' },
     h('p', { class: 'cal-intro' },
-      kit ? 'The click reaches your ears a little late, more so over wireless headphones. Hit your snare along with '
+      mic ? 'Put your headphones on, so the microphone hears only your pad and not the click. Hit your pad along with '
+        : kit ? 'The click reaches your ears a little late, more so over wireless headphones. Hit your snare along with '
         : 'Phones and wireless headphones play sound a little late. Tap the pad along with ',
       h('b', null, `${CLICKS} clicks`), ', and the app will learn the delay and correct your scores for it.'),
     h('div', { class: 'cal-stage' }, count, pad, status),
@@ -57,7 +61,7 @@ export function openCalibration(onSaved, source = 'tap') {
     if (running) taps.push(audioTimeAt(ts));
   };
   // With a kit, any drum counts and the kit makes the sound.
-  const offKit = kit ? onMidiHit((hit) => onTap(hit.ts, true)) : null;
+  const offKit = mic ? onMicHit((hit) => onTap(hit.ts, true)) : kit ? onMidiHit((hit) => onTap(hit.ts, true)) : null;
   pad.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     onTap(e.timeStamp);

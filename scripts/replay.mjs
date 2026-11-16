@@ -21,7 +21,10 @@ export function replayRun(run) {
     ids: run.ids, loops: run.loops, startTime: run.startTime, sixteenth: run.sixteenth,
     toAudioTime: (t) => t, // recorded times are already audio times, corrected for the offsets
   });
-  for (const tap of run.taps) session.hit(tap.id, tap.t, tap.src, { velocity: tap.vel, open: tap.open, note: tap.note });
+  for (const tap of run.taps) {
+    if (tap.id === 'any') session.hitAny(tap.t, tap.src); // heard by the microphone
+    else session.hit(tap.id, tap.t, tap.src, { velocity: tap.vel, open: tap.open, note: tap.note });
+  }
   return { result: session.result(), session };
 }
 
