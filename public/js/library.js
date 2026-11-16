@@ -1,11 +1,13 @@
 // Saved grooves: a small library, share links, and MIDI files.
 // Nothing here touches the page, so it can be tested on its own.
 import { KIT } from './kit.js';
-import { NOTE, meterOf, slotPos, normalizeChart, clonePattern } from './grooves.js';
+import { NOTE, meterOf, slotPos, normalizeChart, clonePattern, repeatForm } from './grooves.js';
 import { store } from './store.js';
 
 const MAX_SAVED = 100;
-const MAX_BARS = 8;
+const MAX_BARS = 16;
+/** A repeat needs at least a bar to repeat and two endings. */
+const canRepeat = (flag, bars) => !!flag && bars.length >= 3;
 const cleanName = (n) => String(n || '').trim().slice(0, 40) || 'My groove';
 const cleanBpm = (b) => Math.min(220, Math.max(40, Math.round(Number(b) || 90)));
 
@@ -13,8 +15,13 @@ const cleanBpm = (b) => Math.min(220, Math.max(40, Math.round(Number(b) || 90)))
 function entry(raw) {
   const c = normalizeChart({ name: raw?.name, bars: raw?.bars });
   if (!c || c.bars.length > MAX_BARS) return null;
-  return { id: String(raw.id || ''), name: cleanName(raw.name), bars: c.bars, bpm: cleanBpm(raw.bpm), at: Number(raw.at) || 0 };
+  const e = { id: String(raw.id || ''), name: cleanName(raw.name), bars: c.bars, bpm: cleanBpm(raw.bpm), at: Number(raw.at) || 0 };
+  if (canRepeat(raw.repeat, c.bars)) e.repeat = true;
+  return e;
 }
+
+/** A saved groove as a chart for playing: its bars, with the repeat written out if it has one. */
+export const asChart = (e) => ({ name: e.name, bars: e.bars, ...(canRepeat(e.repeat, e.bars) ? repeatForm(e.bars.length) : {}) });
 
 export const sameBars = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 export const hasNotes = (bars) => bars.some((p) => KIT.some((k) => p[k.id].some(Boolean)));
@@ -26,8 +33,8 @@ export function loadLibrary() {
 }
 
 /** Save a groove. One with the same name is replaced. Returns the saved entry. */
-export function saveToLibrary({ name, bars, bpm }) {
-  const e = entry({ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name, bars: bars.map(clonePattern), bpm, at: Date.now() });
+export function saveToLibrary({ name, bars, bpm, repeat }) {
+  const e = entry({ id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name, bars: bars.map(clonePattern), bpm, repeat, at: Date.now() });
   if (!e) return null;
   const rest = loadLibrary().filter((x) => x.name.toLowerCase() !== e.name.toLowerCase());
   store.set('library', [e, ...rest].slice(0, MAX_SAVED));
@@ -51,7 +58,7 @@ const toB64 = (text) => btoa(String.fromCharCode(...new TextEncoder().encode(tex
 const fromB64 = (code) => new TextDecoder().decode(Uint8Array.from(atob(code.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
 
 /** A groove as a short piece of text that fits in a link. */
-export function encodeGroove({ name, bars, bpm }) {
+export function encodeGroove({ name, bars, bpm, repeat }) {
   const b = bars.map((p) => {
     const row = {};
     for (const k of KIT) if (p[k.id].some(Boolean)) row[k.id] = p[k.id].join('');
@@ -59,7 +66,7 @@ export function encodeGroove({ name, bars, bpm }) {
     if (p.long) row.long = 1;
     return row;
   });
-  return toB64(JSON.stringify({ v: 1, n: cleanName(name), t: cleanBpm(bpm), m: meterOf(bars[0]).id, b }));
+  return toB64(JSON.stringify({ v: 1, n: cleanName(name), t: cleanBpm(bpm), m: meterOf(bars[0]).id, b, ...(canRepeat(repeat, bars) ? { r: 1 } : {}) }));
 }
 
 /** Read a groove back out of a link. Returns { name, bars, bpm }, or null if it isn't one. */
@@ -76,7 +83,8 @@ export function decodeGroove(code) {
       return p;
     });
     const c = normalizeChart({ bars });
-    return c ? { name: cleanName(o.n), bars: c.bars, bpm: cleanBpm(o.t) } : null;
+    if (!c) return null;
+    return { name: cleanName(o.n), bars: c.bars, bpm: cleanBpm(o.t), ...(canRepeat(o.r, c.bars) ? { repeat: true } : {}) };
   } catch {
     return null;
   }
@@ -97,7 +105,9 @@ function varLen(n) {
 }
 
 /** The groove as a standard MIDI file (drums on channel 10), played through `loops` times. */
-export function grooveToMidi({ name = '', bars, bpm = 90 }, loops = 1) {
+export function grooveToMidi({ name = '', bars: written, bpm = 90, repeat }, loops = 1) {
+  // A repeat is written out in full, the way it is played.
+  const bars = canRepeat(repeat, written) ? repeatForm(written.length).order.map((i) => written[i]) : written;
   const m = meterOf(bars[0]);
   // In 6/8 and 12/8 the beat is a dotted quarter.
   const beat = m.compound ? QUARTER * 1.5 : QUARTER;

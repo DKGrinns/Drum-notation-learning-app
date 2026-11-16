@@ -5,9 +5,9 @@ import { download, shareGroove, groovePng } from '../export.js';
 import { KIT } from '../kit.js';
 import {
   PRESETS, METERS, NOTE, NOTE_TYPES, noteTypeFits, makeGroove, clonePattern, normalizeGroove, normalizeChart, emptyPattern,
-  subdivision, subdivisionLabel, isTrip, isCompound, countLabel, beatsOf, meterOf,
+  subdivision, subdivisionLabel, isTrip, isCompound, countLabel, beatsOf, meterOf, repeatForm,
 } from '../grooves.js';
-import { renderPattern, LEFT, RIGHT, BEAT_GAP } from '../notation.js';
+import { renderPattern, renderChart, LEFT, RIGHT, BEAT_GAP } from '../notation.js';
 import { transport, playInstrument, playNote } from '../audio.js';
 import { store } from '../store.js';
 
@@ -18,7 +18,7 @@ const TRIPLET = ['', 'trip', 'let'];
 const COMPOUND = ['', '&', 'a'];
 const UNITS = 12; // grid columns per beat: 16ths span 3, 8ths 6, triplets 4
 const TYPE_NAME = Object.fromEntries(NOTE_TYPES.map((t) => [t.value, t.name]));
-const MAX_BARS = 8;
+const MAX_BARS = 16;
 
 let S = null;
 let els = null;
@@ -38,7 +38,8 @@ function loadMyBars() {
 /** Your bars as a chart, or null if you've only written one bar. */
 export function loadMyChart() {
   const bars = loadMyBars();
-  return bars.length > 1 ? { name: 'My groove', bars } : null;
+  if (bars.length < 2) return null;
+  return { name: 'My groove', bars, ...(bars.length >= 3 && store.get('myRepeat', false) ? repeatForm(bars.length) : {}) };
 }
 
 export function mount(root, nav) {
@@ -47,6 +48,7 @@ export function mount(root, nav) {
     // `groove` is the bar being edited: groove.pattern is always bars[bar].
     bars,
     bar: 0,
+    repeat: bars.length >= 3 && !!store.get('myRepeat', false), // the last two bars are 1st and 2nd endings
     groove: { name: loadMyGroove().name, pattern: bars[0] },
     bpm: store.get('build.bpm', 90),
     res: store.get('build.res', 2), // straight beats: 2 = 8th-note grid, 1 = 16th-note grid
@@ -94,6 +96,12 @@ export function mount(root, nav) {
     },
   });
   const savedCount = h('span', { class: 'row-value' });
+  const repeatSwitch = toggle(S.repeat, (v) => {
+    S.repeat = v;
+    save();
+    renderAll();
+  }, 'Repeat with two endings');
+  const repeatRow = row(['Repeat with two endings', h('span', { class: 'row-sub' }, 'The last two bars become the 1st and 2nd endings')], repeatSwitch);
   const rowBtn = (label, sub, onClick, right) => h('button', { type: 'button', class: 'row row-btn', onClick },
     h('span', { class: 'row-main' }, h('span', null, label), h('span', { class: 'row-sub' }, sub)), right, svgIcon(ICONS.chevron, 'icon chevron'));
 
@@ -116,20 +124,22 @@ export function mount(root, nav) {
     h('div', { class: 'list' },
       tripRow,
       row(['Long notes', h('span', { class: 'row-sub' }, 'Write halves and dotted quarters')], longSwitch),
+      repeatRow,
       row('Metronome', toggle(S.click, (v) => {
         S.click = v;
         store.set('build.click', v);
       }, 'Metronome'))),
     h('div', { class: 'section-label' }, 'Keep and share'),
     h('div', { class: 'list' },
+      rowBtn('See the whole chart', 'Every bar, written out together', openWhole),
       rowBtn('Save this groove', 'Keep it in your saved grooves', saveCurrent),
       rowBtn('Saved grooves', 'Open one you saved earlier', openLibrary, savedCount),
       rowBtn('Share or export', 'A link, a MIDI file or a picture', openShare)),
     h('p', { class: 'footnote' },
-      'Tap a square to add a note — the staff writes it for you. Pick Accent, Ghost, Open or Flam above, then tap a note to change it. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on); your bars play in order and show up in Play as “My groove”.'),
+      'Tap a square to add a note — the staff writes it for you. Pick Accent, Ghost, Open or Flam above, then tap a note to change it. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on), up to 16; your bars play in order and show up in Play as “My groove”. With three or more bars you can turn on a repeat with two endings.'),
   );
 
-  els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount };
+  els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount, repeatSwitch, repeatRow };
   updatePlayBtn();
   updateSavedCount();
   renderAll();
@@ -146,10 +156,16 @@ export function unmount() {
 function save() {
   store.set('myGroove', { name: S.groove.name, pattern: S.bars[0] });
   store.set('myBars', S.bars.length > 1 ? S.bars : null);
+  store.set('myRepeat', S.repeat);
 }
 
+/** The bar numbers in the order they play (with the repeat, if it is on). */
+const playOrder = () => (S.repeat ? repeatForm(S.bars.length).order : S.bars.map((_, i) => i));
+/** 1 or 2 if this bar is the first or second ending, else 0. */
+const endingOf = (i) => (S.repeat ? repeatForm(S.bars.length).endings.indexOf(i) + 1 : 0);
+
 /** Everything needed to undo a change. */
-const snapshot = () => ({ name: S.groove.name, bars: S.bars.map(clonePattern), bar: S.bar });
+const snapshot = () => ({ name: S.groove.name, bars: S.bars.map(clonePattern), bar: S.bar, repeat: S.repeat });
 
 /** Replace the bar being edited. */
 function setPattern(p) {
@@ -157,7 +173,7 @@ function setPattern(p) {
   S.groove.pattern = p;
 }
 
-const subText = () => `${subdivisionLabel(S.groove)}${S.bars.length > 1 ? ` · bar ${S.bar + 1} of ${S.bars.length}` : ''}`;
+const subText = () => `${subdivisionLabel(S.groove)}${S.bars.length > 1 ? ` · bar ${S.bar + 1} of ${S.bars.length}` : ''}${['', ' · 1st ending', ' · 2nd ending'][endingOf(S.bar)]}`;
 
 function renderBars() {
   const n = S.bars.length;
@@ -165,7 +181,7 @@ function renderBars() {
   els.barTabs.replaceChildren(...[
     h('span', { class: 'bar-tabs-label' }, 'Bar'),
     ...S.bars.map((_, i) => chip(String(i + 1), {
-      class: `beat-toggle${i === S.bar ? ' on' : ''}`, 'aria-pressed': i === S.bar, 'aria-label': `Bar ${i + 1}`, 'data-bar': i, onClick: () => selectBar(i),
+      class: `beat-toggle${i === S.bar ? ' on' : ''}${endingOf(i) ? ' ending' : ''}`, 'aria-pressed': i === S.bar, 'aria-label': `Bar ${i + 1}${['', ', first ending', ', second ending'][endingOf(i)]}`, 'data-bar': i, onClick: () => selectBar(i),
     })),
     n < MAX_BARS && chip('+', { class: 'beat-toggle tool', 'aria-label': 'Add a bar (a copy of this one)', onClick: addBar }),
     n > 1 && chip('−', { class: 'beat-toggle tool', 'aria-label': 'Remove this bar', onClick: removeBar }),
@@ -190,6 +206,7 @@ function addBar() {
 function removeBar() {
   const prev = snapshot();
   S.bars.splice(S.bar, 1);
+  if (S.bars.length < 3) S.repeat = false;
   save();
   selectBar(Math.min(S.bar, S.bars.length - 1));
   toast(`Removed bar ${prev.bar + 1}`, { label: 'Undo', onClick: () => restore(prev) });
@@ -223,6 +240,8 @@ function renderAll() {
     onClick: () => toggleTrip(b),
   }, String(b + 1))));
   els.longSwitch.checked = !!p.long;
+  els.repeatSwitch.checked = S.repeat;
+  els.repeatRow.hidden = S.bars.length < 3;
   renderGrid();
   renderStaff();
 }
@@ -406,6 +425,7 @@ function convertMeter(old, m) {
 function restore(snap) {
   S.bars = snap.bars;
   S.bar = Math.min(snap.bar, S.bars.length - 1);
+  S.repeat = !!snap.repeat && S.bars.length >= 3;
   S.groove = { name: snap.name, pattern: S.bars[S.bar] };
   fitRes();
   save();
@@ -447,7 +467,10 @@ function start() {
   const startPattern = S.groove.pattern;
   transport.start({
     getBpm: () => S.bpm,
-    getPattern: (n) => S.bars[n % S.bars.length],
+    getPattern: (n) => {
+      const order = playOrder();
+      return S.bars[order[n % order.length]];
+    },
     loops: Infinity,
     playGroove: true,
     metronome: () => S.click,
@@ -461,7 +484,8 @@ function start() {
         return;
       }
       // The grid shows one bar; light it up only while that bar is the one playing.
-      const playing = ev.loop % S.bars.length;
+      const order = playOrder();
+      const playing = order[ev.loop % order.length];
       for (const b of els.barTabs.querySelectorAll('[data-bar]')) b.classList.toggle('now', Number(b.dataset.bar) === playing);
       if (playing !== S.bar) {
         if (S.slot != null) {
@@ -498,8 +522,16 @@ function updatePlayBtn() {
 // ---------- Saved grooves, sharing and export ----------
 
 /** The groove being written, with its tempo. */
-const current = () => ({ name: S.groove.name, bars: S.bars, bpm: S.bpm });
-const describe = (e) => `${e.bars.length} bar${e.bars.length === 1 ? '' : 's'} · ${meterOf(e.bars[0]).id} · ${e.bpm} BPM`;
+const current = () => ({ name: S.groove.name, bars: S.bars, bpm: S.bpm, repeat: S.repeat });
+const describe = (e) => `${e.bars.length} bar${e.bars.length === 1 ? '' : 's'}${e.repeat ? ' with a repeat' : ''} · ${meterOf(e.bars[0]).id} · ${e.bpm} BPM`;
+
+/** Show every bar together, the way it will look in Play. */
+function openWhole() {
+  const host = h('div', { class: 'staff-host' });
+  modal({ title: S.groove.name, content: h('div', { class: 'lib' }, host), tall: true });
+  const draw = () => renderChart(host, { bars: S.bars, full: true, endings: S.repeat ? repeatForm(S.bars.length).endings : null });
+  requestAnimationFrame(draw);
+}
 
 function updateSavedCount() {
   const n = loadLibrary().length;
@@ -530,6 +562,7 @@ export function openGroove(e) {
   if (unsaved) saveToLibrary({ name: 'Unsaved groove', bars: S.bars, bpm: S.bpm });
   S.bars = e.bars.map(clonePattern);
   S.bar = 0;
+  S.repeat = !!e.repeat && S.bars.length >= 3;
   S.groove = { name: e.name, pattern: S.bars[0] };
   S.bpm = e.bpm;
   els.bpmVal.textContent = S.bpm;

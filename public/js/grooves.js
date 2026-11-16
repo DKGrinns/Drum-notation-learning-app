@@ -388,6 +388,15 @@ export function normalizeChart(c) {
 /** The bar numbers in the order they are played. */
 export const chartOrder = (c) => c.order || c.bars.map((_, i) => i);
 
+/**
+ * A repeat with two endings for a chart of n bars (3 or more): the last two bars
+ * are the first and second endings. Returns { order, endings }.
+ */
+export function repeatForm(n) {
+  const head = Array.from({ length: n - 2 }, (_, i) => i);
+  return { order: [...head, n - 2, ...head, n - 1], endings: [n - 2, n - 1] };
+}
+
 /** The same bar with a kick added (and sometimes one taken away). */
 function varyKick(p, level) {
   const out = clonePattern(p);
@@ -451,6 +460,41 @@ export function randomChart(gen = 0, { nBars = 4, repeat = false } = {}) {
     return { name: `${label} repeat chart`.trim(), bars, order: [...head, n - 1, ...head, n], endings: [n - 1, n] };
   }
   return { name: `${label} chart`.trim(), bars };
+}
+
+/**
+ * A 16-bar chart in four phrases of four bars: the groove twice, a contrasting
+ * section (the hands often move to the ride), then the groove again. Every
+ * phrase ends in a fill, the last one the biggest.
+ */
+export function randomLongChart(gen = 0) {
+  const simple = typeof gen === 'number';
+  const level = simple ? gen : 1;
+  let base = randomGroove(gen);
+  for (let i = 0; i < 20 && base.pattern.tom1.some(Boolean); i++) base = randomGroove(gen);
+  const A = base.pattern;
+  const B = simple && chance(0.85) ? varyKick(A, level) : A;
+  const C = simple ? varyKick(A, level) : clonePattern(A);
+  if (level >= 1 && C.hihat.some(Boolean) && !C.ride.some(Boolean)) {
+    C.ride = C.hihat.map((v) => (v ? NOTE.HIT : 0));
+    C.hihat = C.hihat.map(() => 0);
+  }
+  const light = Math.max(0, level - 1);
+  const phrase = (x, y, fill) => {
+    const four = [x, y, x, y].map(clonePattern);
+    addFill(four[3], fill);
+    return four;
+  };
+  const bars = [...phrase(A, B, light), ...phrase(A, B, level), ...phrase(C, C, light), ...phrase(A, B, level)];
+  if (level >= 1) {
+    // A crash marks the top of the chart and each change of section.
+    for (const n of [0, 8, 12]) {
+      for (const id of ['hihat', 'ride']) bars[n][id][0] = 0;
+      bars[n].crash[0] = NOTE.HIT;
+    }
+  }
+  const label = simple ? LEVEL_NAMES[gen] : STYLES.find((s) => s.id === gen)?.name || '';
+  return { name: `${label} 16-bar chart`.trim(), bars };
 }
 
 /** One small, audible change to a groove (used to build "which one did you hear?" choices). */

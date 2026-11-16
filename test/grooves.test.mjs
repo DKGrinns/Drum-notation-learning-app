@@ -62,6 +62,22 @@ test('repeat charts are five bars written and eight bars played', () => {
   }
 });
 
+test('16-bar charts are sixteen bars in one meter with a fill ending each phrase', () => {
+  for (const gen of [0, 1, 2, ...G.STYLES.map((s) => s.id)]) {
+    for (let i = 0; i < 20; i++) {
+      const c = G.randomLongChart(gen);
+      assert.equal(c.bars.length, 16);
+      assert.ok(G.normalizeChart(roundTrip(c)), `long chart for ${gen} loads back`);
+      for (const n of [3, 7, 11, 15]) assert.notDeepEqual(c.bars[n], c.bars[n - 1], `bar ${n + 1} for ${gen} is a fill`);
+    }
+  }
+});
+
+test('a repeat makes the last two bars the first and second endings', () => {
+  assert.deepEqual(G.repeatForm(5), { order: [0, 1, 2, 3, 0, 1, 2, 4], endings: [3, 4] });
+  assert.deepEqual(G.repeatForm(3), { order: [0, 1, 0, 2], endings: [1, 2] });
+});
+
 test('a chart without a repeat plays its bars in order', () => {
   assert.deepEqual(G.chartOrder(G.randomChart(0)), [0, 1, 2, 3]);
   assert.equal(G.normalizeChart({ bars: [G.emptyPattern()], order: [0, 5] }).order, undefined);

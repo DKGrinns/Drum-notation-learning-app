@@ -1,7 +1,7 @@
 // Saving a groove out of the app: a file download, a share link, a picture.
 import { h, toast } from './ui.js';
 import { renderChart } from './notation.js';
-import { encodeGroove } from './library.js';
+import { encodeGroove, asChart } from './library.js';
 
 /** Download some bytes or a blob as a file. */
 export function download(data, name, type) {
@@ -39,12 +39,12 @@ export async function shareGroove(groove) {
 const LOOK = ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'font-family', 'font-size', 'font-weight', 'font-style', 'text-anchor', 'dominant-baseline', 'opacity', 'fill-opacity'];
 
 /** Draw the groove as a PNG picture (black on white). Resolves to a Blob. */
-export async function groovePng({ name, bars, bpm }) {
+export async function groovePng({ name, bars, bpm, repeat }) {
   const W = bars.length > 1 ? 1000 : 640;
   const host = h('div', { class: 'staff-host', style: `position:fixed;left:-9999px;top:0;width:${W}px;color:#111;--ink:#111;--ink2:#555;--ink3:#999;` });
   document.body.append(host);
   try {
-    renderChart(host, { bars, full: true });
+    renderChart(host, { bars, full: true, endings: asChart({ bars, repeat }).endings || null });
     const svg = host.querySelector('svg');
     svg.querySelector('.playhead')?.remove();
     for (const e of svg.querySelectorAll('*')) {

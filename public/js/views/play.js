@@ -1,7 +1,7 @@
 // Play: tap along to written grooves and get per-note timing feedback.
 // Sight-reading options deal a new random groove each time.
 import { h, stepper, toggle, slider, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
-import { PRESETS, LEVEL_NAMES, STYLES, makeGroove, randomGroove, randomChart, normalizeGroove, normalizeChart, chartOrder, usedInstruments, chartInstruments, subdivisionLabel, countInFor } from '../grooves.js';
+import { PRESETS, LEVEL_NAMES, STYLES, makeGroove, randomGroove, randomChart, randomLongChart, normalizeGroove, normalizeChart, chartOrder, usedInstruments, chartInstruments, subdivisionLabel, countInFor } from '../grooves.js';
 import { renderPattern, renderChart } from '../notation.js';
 import { transport, playInstrument, volume, setVolume } from '../audio.js';
 import { store } from '../store.js';
@@ -11,7 +11,7 @@ import { openKitSetup, kitSummary } from '../kitsetup.js';
 import { openCalibration } from '../calibrate.js';
 import { logPractice } from '../progress.js';
 import { loadMyGroove, loadMyChart } from './build.js';
-import { loadLibrary } from '../library.js';
+import { loadLibrary, asChart } from '../library.js';
 
 export const title = 'Play';
 
@@ -27,9 +27,9 @@ function grooveOptions() {
   const saved = store.get('play.rand', {});
   const randOpt = (key, gen, name, detail) => ({ key, gen, name, detail, groove: normalizeGroove(saved[gen]) || randomGroove(gen) });
   // A chart is several bars; `groove` holds its first bar for the checks that only need one.
-  const chartOpt = (key, gen, repeat, name, detail) => {
-    const chart = normalizeChart(saved[`chart:${key}`]) || randomChart(gen, { repeat });
-    return { key, gen, repeat, chart, name, detail, groove: { name: chart.name, pattern: chart.bars[0] } };
+  const chartOpt = (key, gen, repeat, name, detail, long = false) => {
+    const chart = normalizeChart(saved[`chart:${key}`]) || newChart({ gen, repeat, long });
+    return { key, gen, repeat, long, chart, name, detail, groove: { name: chart.name, pattern: chart.bars[0] } };
   };
   const mine = loadMyChart();
   return [
@@ -38,10 +38,11 @@ function grooveOptions() {
       : { key: 'my', name: 'My groove', detail: 'From the Build tab', groove: loadMyGroove() },
     ...loadLibrary().map((e) => {
       const base = { key: `lib:${e.id}`, name: e.name, detail: `Saved groove · ${e.bars.length} bar${e.bars.length === 1 ? '' : 's'}`, groove: { name: e.name, pattern: e.bars[0] } };
-      return e.bars.length > 1 ? { ...base, chart: { name: e.name, bars: e.bars } } : base;
+      return e.bars.length > 1 ? { ...base, chart: asChart(e) } : base;
     }),
     ...LEVEL_NAMES.map((lv, i) => chartOpt(`c${i}`, i, false, `4-bar chart · ${lv}`, 'Four bars ending in a fill')),
     ...LEVEL_NAMES.map((lv, i) => chartOpt(`e${i}`, i, true, `Repeat chart · ${lv}`, 'Eight bars: a repeat with two endings')),
+    ...LEVEL_NAMES.map((lv, i) => chartOpt(`L${i}`, i, false, `16-bar chart · ${lv}`, 'Four phrases, each ending in a fill', true)),
     ...STYLES.map((st) => chartOpt(`cs:${st.id}`, st.id, false, `4-bar chart · ${st.name}`, 'Four bars ending in a fill')),
     ...LEVEL_NAMES.map((lv, i) => randOpt(`r${i}`, i, `Sight-read · ${lv}`, 'A new groove every time')),
     ...STYLES.map((st) => randOpt(`s:${st.id}`, st.id, `Sight-read · ${st.name}`, 'A new groove every time')),
@@ -51,6 +52,9 @@ function grooveOptions() {
     }),
   ];
 }
+
+/** A fresh random chart for a chart option. */
+const newChart = ({ gen, repeat, long }) => (long ? randomLongChart(gen) : randomChart(gen, { repeat }));
 
 export function mount(root, nav) {
   navRef = nav;
@@ -220,7 +224,7 @@ function newRandom() {
   const opt = option();
   const saved = store.get('play.rand', {});
   if (opt.chart) {
-    opt.chart = randomChart(opt.gen, { repeat: opt.repeat });
+    opt.chart = newChart(opt);
     opt.groove = { name: opt.chart.name, pattern: opt.chart.bars[0] };
     saved[`chart:${opt.key}`] = opt.chart;
   } else {

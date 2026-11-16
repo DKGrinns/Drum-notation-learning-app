@@ -19,6 +19,16 @@ test('6/8 grooves are shared with their time signature', () => {
   assert.deepEqual(decodeGroove(encodeGroove({ name: 'Six', bars: [p], bpm: 60 })).bars, [p]);
 });
 
+test('a repeat is shared, and written out in full in a MIDI file', () => {
+  const bar = (kick) => makeGroove('', { snare: [4, 12], kick }).pattern;
+  const g = { name: 'Form', bars: [bar([0]), bar([0, 8]), bar([0, 10])], bpm: 100, repeat: true };
+  assert.deepEqual(decodeGroove(encodeGroove(g)), g);
+  assert.equal(decodeGroove(encodeGroove({ ...g, bars: g.bars.slice(0, 2) })).repeat, undefined); // too short to repeat
+  const ons = (x) => [...grooveToMidi(x)].filter((b, i, all) => b === 0x99 && [36, 38].includes(all[i + 1]) && all[i + 2] === 96).length;
+  assert.equal(ons(g), 3 + 4 + 3 + 4); // bars 1, 2, 1, 3
+  assert.equal(ons({ ...g, repeat: false }), 3 + 4 + 4);
+});
+
 test('a broken or hostile link is refused, not loaded', () => {
   assert.equal(decodeGroove('not a groove'), null);
   assert.equal(decodeGroove(''), null);
