@@ -136,7 +136,7 @@ export function mount(root, nav) {
       rowBtn('Saved grooves', 'Open one you saved earlier', openLibrary, savedCount),
       rowBtn('Share or export', 'A link, a MIDI file or a picture', openShare)),
     h('p', { class: 'footnote' },
-      'Tap a square to add a note — the staff writes it for you. Pick Accent, Ghost, Open, Flam, Cross (cross-stick) or Bell (ride bell) above, then tap a note to change it. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on), up to 16; your bars play in order and show up in Play as “My groove”. With three or more bars you can turn on a repeat with two endings.'),
+      'Tap a square to add a note — the staff writes it for you. Pick another kind of note above (Cross is a cross-stick, Bell the ride’s bell, Rim a rimshot; a Tie is held, not played), then tap a note to change it. The Sticking row writes R or L under a note. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on), up to 16; your bars play in order and show up in Play as “My groove”. With three or more bars you can turn on a repeat with two endings.'),
   );
 
   els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount, repeatSwitch, repeatRow };
@@ -307,7 +307,37 @@ function renderGrid() {
       });
     }
   });
+  // Sticking: which hand plays each note (R or L), written under the staff.
+  const sr = KIT.length + 2;
+  grid.append(h('span', { class: 'lbl', style: { gridRow: String(sr), gridColumn: '1' } }, 'Sticking'));
+  for (let b = 0; b < beats; b++) {
+    const cols = beatCols(b);
+    cols.forEach((c, i) => {
+      const cell = h('button', { type: 'button', 'data-slot': c.slot, style: place(sr, b, i, cols.length), onClick: () => tapStick(c.slot, cell, b) });
+      paintStick(cell, c.slot, b);
+      grid.append(cell);
+    });
+  }
   highlight(S.slot);
+}
+
+function paintStick(cell, slot, b) {
+  const v = S.groove.pattern.stick?.[slot] || 0;
+  cell.className = `cell stick${v ? ' on' : ''}${b % 2 ? ' alt' : ''}`;
+  cell.textContent = ['', 'R', 'L'][v];
+  cell.setAttribute('aria-label', `Sticking on ${countLabel(slot, S.groove.pattern)}: ${['none', 'right hand', 'left hand'][v]}`);
+  if (S.slot === slot) cell.classList.add('now');
+}
+
+/** Each tap moves a sticking square on: empty, R, L, empty. */
+function tapStick(slot, cell, b) {
+  const p = S.groove.pattern;
+  p.stick = p.stick || Array(beatsOf(p) * 4).fill(0);
+  p.stick[slot] = (p.stick[slot] + 1) % 3;
+  if (!p.stick.some(Boolean)) delete p.stick;
+  paintStick(cell, slot, b);
+  edited();
+  renderStaff();
 }
 
 function paintCell(cell, k, slot, b = slot >> 2) {
@@ -361,6 +391,7 @@ function toggleTrip(b) {
     if (toTrip && row[b * 4 + 3]) lost++;
     if (toTrip) row[b * 4 + 3] = 0;
   }
+  if (toTrip && p.stick) p.stick[b * 4 + 3] = 0;
   p.trip = p.trip || Array(beatsOf(p)).fill(0);
   p.trip[b] = toTrip ? 1 : 0;
   if (!p.trip.some(Boolean)) delete p.trip;
@@ -417,6 +448,14 @@ function convertMeter(old, m) {
   if (!toCompound && !eighths) {
     const trip = Array.from({ length: METERS[m].beats }, (_, b) => (b < beats && (fromCompound || old.trip?.[b]) ? 1 : 0));
     if (trip.some(Boolean)) next.trip = trip;
+  }
+  // Sticking carries over when the beats keep their shape.
+  if (old.stick && !eighths && toCompound === fromCompound) {
+    const stick = Array(METERS[m].beats * 4).fill(0);
+    old.stick.forEach((v, s) => {
+      if (v && s >> 2 < beats) stick[s] = v;
+    });
+    if (stick.some(Boolean)) next.stick = stick;
   }
   if (old.long) next.long = true;
   return { next, lost };

@@ -61,8 +61,10 @@ const fromB64 = (code) => new TextDecoder().decode(Uint8Array.from(atob(code.rep
 export function encodeGroove({ name, bars, bpm, repeat }) {
   const b = bars.map((p) => {
     const row = {};
-    for (const k of KIT) if (p[k.id].some(Boolean)) row[k.id] = p[k.id].join('');
+    // One character per slot (0–9, then a, b… for the higher note types).
+    for (const k of KIT) if (p[k.id].some(Boolean)) row[k.id] = p[k.id].map((v) => v.toString(36)).join('');
     if (p.trip) row.trip = p.trip.join('');
+    if (p.stick?.some(Boolean)) row.stick = p.stick.join('');
     if (p.long) row.long = 1;
     return row;
   });
@@ -74,11 +76,12 @@ export function decodeGroove(code) {
   try {
     const o = JSON.parse(fromB64(String(code)));
     if (o?.v !== 1 || !Array.isArray(o.b) || o.b.length > MAX_BARS) return null;
-    const digits = (s) => String(s).split('').map(Number);
+    const digits = (s) => String(s).split('').map((ch) => parseInt(ch, 36) || 0);
     const bars = o.b.map((row) => {
       const p = { meter: o.m };
       for (const k of KIT) if (row[k.id]) p[k.id] = digits(row[k.id]);
       if (row.trip) p.trip = digits(row.trip);
+      if (row.stick) p.stick = digits(row.stick);
       if (row.long) p.long = true;
       return p;
     });
@@ -117,10 +120,12 @@ export function grooveToMidi({ name = '', bars: written, bpm = 90, repeat }, loo
     const p = bars[n % bars.length];
     for (const k of KIT) {
       p[k.id].forEach((v, slot) => {
-        if (!v || !GM[k.id]) return;
+        if (!v || v === NOTE.TIE || !GM[k.id]) return;
         const t = n * barTicks + Math.round((slotPos(p, slot) * beat) / 4);
-        const note = k.id === 'hihat' && v === NOTE.OPEN ? 46 : k.id === 'snare' && v === NOTE.CROSS ? 37 : k.id === 'ride' && v === NOTE.BELL ? 53 : GM[k.id];
+        const note = k.id === 'hihat' && v === NOTE.OPEN ? 46 : k.id === 'snare' && v === NOTE.RIM ? 40 : k.id === 'snare' && v === NOTE.CROSS ? 37 : k.id === 'ride' && v === NOTE.BELL ? 53 : GM[k.id];
         if (v === NOTE.FLAM) notes.push({ t: Math.max(0, t - 30), note, vel: 45 });
+        if (v === NOTE.DRAG) for (const back of [56, 28]) notes.push({ t: Math.max(0, t - back), note, vel: 40 });
+        if (v === NOTE.ROLL) for (let i = 1; i < 6; i++) notes.push({ t: t + i * 30, note, vel: 55 });
         notes.push({ t, note, vel: VELOCITY[v] || 96 });
       });
     }

@@ -239,7 +239,18 @@ export function playNote(id, value = NOTE.HIT, t, out) {
   const c = getCtx();
   t = t ?? c.currentTime + 0.005;
   if (value === NOTE.OPEN && id === 'hihat') return playInstrument('hihatOpen', t, LEVEL[value], out);
+  if (value === NOTE.TIE) return; // held over from the note before: nothing is struck
   if (value === NOTE.CROSS && id === 'snare') return playInstrument('rim', t, 0.9, out);
+  if (value === NOTE.RIM && id === 'snare') {
+    playInstrument('rim', t, 0.7, out);
+    return playInstrument('snare', t, 1.3, out);
+  }
+  if (value === NOTE.ROLL) {
+    // A buzz: quick, even, soft strokes.
+    for (let i = 0; i < 6; i++) playInstrument(id, t + i * 0.03, i ? 0.34 : 0.5, out);
+    return;
+  }
+  if (value === NOTE.DRAG) for (const back of [0.062, 0.032]) playInstrument(id, Math.max(c.currentTime, t - back), 0.32, out);
   if (value === NOTE.BELL && id === 'ride') return playInstrument('rideBell', t, 1, out);
   if (value === NOTE.FLAM) playInstrument(id, Math.max(c.currentTime, t - 0.032), 0.4, out);
   playInstrument(id, t, LEVEL[value] ?? 0.9, out);
@@ -369,7 +380,7 @@ class Transport {
     if (within % per) return;
     const slot = beat * 4 + within / per;
     if (val(playGroove)) {
-      for (const id in p) if (Array.isArray(p[id]) && id !== 'trip' && p[id][slot]) playNote(id, p[id][slot], t, this.bus);
+      for (const id in p) if (Array.isArray(p[id]) && id !== 'trip' && id !== 'stick' && p[id][slot]) playNote(id, p[id][slot], t, this.bus);
     }
     this.queue.push({ type: 'step', slot, loop, time: t });
   }

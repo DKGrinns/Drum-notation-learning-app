@@ -60,6 +60,21 @@ test('a flam played as two strokes is one note, timed by the second stroke', () 
   assert.deepEqual(r.expression.flams, { ok: 1, total: 3 });
 });
 
+test('drags, rolls and ties: extra strokes are part of the note, and a tie is not played', () => {
+  const { pattern } = makeGroove('', { snare: [0, 4, 8, 12], tie: { snare: [4] }, drag: { snare: [8] }, roll: { snare: [12] } });
+  const s = session({ pattern, ids: ['snare'] });
+  const play = (slot, late, note = 38) => s.hit('snare', at(pattern, slot, 0, late), 'midi', { velocity: 80, note });
+  play(0, 0);
+  play(8, -0.06);
+  play(8, -0.03);
+  assert.equal(play(8, 0), 'good'); // two grace strokes, then the main one on the beat
+  for (let i = 0; i < 6; i++) play(12, i * 0.04); // a roll: six quick strokes
+  const r = s.result();
+  assert.deepEqual([r.on, r.missed, r.extras], [3, 0, 0]); // three notes to play: the tied one isn't one of them
+  assert.deepEqual(r.expression.drags, { ok: 1, total: 1 });
+  assert.deepEqual(r.expression.rolls, { ok: 1, total: 1 });
+});
+
 test('a cross-stick and a ride bell are recognised by the note the kit sends', () => {
   const { pattern } = makeGroove('', { ride: [0, 4, 8, 12], bell: { ride: [0, 8] }, cross: { snare: [4, 12] } });
   const s = session({ pattern, ids: ['ride', 'snare'] });

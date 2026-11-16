@@ -9,7 +9,7 @@
 // checked too. That is reported next to the timing score, not folded into it.
 import { h } from './ui.js';
 import { KIT } from './kit.js';
-import { barSlots, slotPos, nearestGap, NOTE } from './grooves.js';
+import { barSlots, slotPos, nearestGap, NOTE, isHit } from './grooves.js';
 import { audioTimeAt } from './audio.js';
 import { store } from './store.js';
 import { midiOffset, onMidiHit } from './midi.js';
@@ -19,6 +19,8 @@ import { logRun } from './diag.js';
 export const ON_TIME = 0.045;
 /** The longest gap (seconds) between the two strokes of a flam. */
 const FLAM_GAP = 0.12;
+/** How many strokes a written note takes: a flam two, a drag three, a roll as many as you like. */
+const STROKES = { [NOTE.FLAM]: 2, [NOTE.DRAG]: 3, [NOTE.ROLL]: Infinity };
 
 /** The calibrated tap offset in ms (positive: your taps register late). */
 export const tapOffset = () => store.get('play.offset', 0);
@@ -47,7 +49,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     const p = seq[bar];
     for (let slot = 0; slot < len; slot++) {
       for (const id of ids) {
-        if (p[id][slot]) {
+        if (isHit(p[id][slot])) {
           expected.push({ id, slot, bar, value: p[id][slot], time: startTime + (n * len + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
         }
       }
@@ -78,13 +80,15 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     }
     // A flam is written as one note but played as two strokes almost together. The
     // second stroke is the main one, so it sets the timing; it isn't an extra hit.
-    const flam = best ? null : expected.find((e) => e.id === id && e.hit && e.value === NOTE.FLAM && !e.flam
-      && t > e.t1 && t - e.t1 <= FLAM_GAP && Math.abs(t - e.time) <= win);
+    // The same goes for the extra strokes of a drag. A roll takes any number of strokes for a beat.
+    const flam = best ? null : expected.find((e) => e.id === id && e.hit && e.strokes < (STROKES[e.value] || 1) && t > e.t1
+      && (e.value === NOTE.ROLL ? t - e.time <= sixteenth * 4 : t - e.t1 <= FLAM_GAP * (STROKES[e.value] - 1) && Math.abs(t - e.time) <= win));
     // t is the corrected time, so a recording can be replayed without knowing the offsets.
     const round = (x) => Math.round(x * 1e4) / 1e4;
     taps.push({ id, t: round(t), src: source || 'tap', vel: info?.velocity, open: info?.open || undefined, note: info?.note, d: best ? round(bestD) : flam ? round(t - flam.time) : null });
     if (flam) {
-      flam.flam = true;
+      flam.strokes++;
+      if (flam.value === NOTE.ROLL) return 'good'; // a roll starts on the beat: its first stroke set the timing
       flam.d = t - flam.time;
       if (source === 'midi' && info?.velocity) {
         flam.graceVel = flam.vel;
@@ -99,6 +103,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     best.hit = true;
     best.d = bestD;
     best.t1 = t;
+    best.strokes = 1;
     if (source === 'midi' && info?.velocity) {
       best.vel = info.velocity;
       best.open = !!info.open;
@@ -128,7 +133,10 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
       accents: tally(of(NOTE.ACCENT), (e) => e.vel >= 120 || (normal[e.id] ? e.vel >= normal[e.id] * 1.15 : e.vel >= 95)),
       ghosts: tally(of(NOTE.GHOST), (e) => (normal[e.id] ? e.vel <= normal[e.id] * 0.6 : e.vel <= 45)),
       opens: tally(of(NOTE.OPEN), (e) => e.open),
-      flams: tally(of(NOTE.FLAM), (e) => !!e.flam),
+      flams: tally(of(NOTE.FLAM), (e) => e.strokes >= 2),
+      drags: tally(of(NOTE.DRAG), (e) => e.strokes >= 3),
+      rolls: tally(of(NOTE.ROLL), (e) => e.strokes >= 3),
+      rims: tally(of(NOTE.RIM), (e) => e.note === 40),
       // These two are told apart by which note the kit sends (37 and 53 on Roland and General MIDI kits).
       crosses: tally(of(NOTE.CROSS), (e) => e.note === 37),
       bells: tally(of(NOTE.BELL), (e) => e.note === 53),
@@ -250,6 +258,9 @@ function expressionDetails(x) {
     ['Open hi-hat', x.opens, 'Lift your foot for the notes with a circle above them.'],
     ['Closed hi-hat', x.closed, 'Keep the hi-hat closed except where a circle is written.'],
     ['Flams', x.flams, 'Play a flam as two strokes almost together: a soft one just before the main one.'],
+    ['Drags', x.drags, 'A drag is three strokes: two quick soft ones, then the main note.'],
+    ['Rolls', x.rolls, 'Keep a roll going for the whole note: let the sticks bounce.'],
+    ['Rimshots', x.rims, 'For a rimshot, hit the head and the rim at the same moment.'],
     ['Cross-stick', x.crosses, 'For a cross-stick, lay the stick across the snare and tap the rim with it.'],
     ['Ride bell', x.bells, 'Play the bell: the raised dome in the middle of the ride.'],
   ].filter((p) => p[1]);

@@ -29,8 +29,10 @@ export const METERS = {
 };
 
 /** Note values stored in a slot. */
-export const NOTE = { HIT: 1, ACCENT: 2, GHOST: 3, OPEN: 4, FLAM: 5, CROSS: 6, BELL: 7 };
-const NOTE_MAX = 7;
+export const NOTE = { HIT: 1, ACCENT: 2, GHOST: 3, OPEN: 4, FLAM: 5, CROSS: 6, BELL: 7, RIM: 8, DRAG: 9, ROLL: 10, TIE: 11 };
+const NOTE_MAX = 11;
+/** A tied note is held over from the note before it, so it is written but not struck. */
+export const isHit = (v) => !!v && v !== NOTE.TIE;
 
 /** The kinds of note you can write, and which drums they make sense on. */
 export const NOTE_TYPES = [
@@ -41,6 +43,10 @@ export const NOTE_TYPES = [
   { value: NOTE.FLAM, id: 'flam', label: 'Flam', name: 'flam', on: ['snare', 'tom1', 'tom2', 'floor'], where: 'the snare and toms' },
   { value: NOTE.CROSS, id: 'cross', label: 'Cross', name: 'cross-stick', on: ['snare'], where: 'the snare' },
   { value: NOTE.BELL, id: 'bell', label: 'Bell', name: 'ride bell', on: ['ride'], where: 'the ride' },
+  { value: NOTE.RIM, id: 'rim', label: 'Rim', name: 'rimshot', on: ['snare'], where: 'the snare' },
+  { value: NOTE.DRAG, id: 'drag', label: 'Drag', name: 'drag', on: ['snare', 'tom1', 'tom2', 'floor'], where: 'the snare and toms' },
+  { value: NOTE.ROLL, id: 'roll', label: 'Roll', name: 'roll', on: ['snare', 'tom1', 'tom2', 'floor'], where: 'the snare and toms' },
+  { value: NOTE.TIE, id: 'tie', label: 'Tie', name: 'tied note', on: null },
 ];
 export const noteTypeFits = (type, id) => !type.on || type.on.includes(id);
 
@@ -71,6 +77,8 @@ export const PRESETS = [
   { name: 'Ghost-note funk', level: 'Advanced', spec: { hihat: E, snare: [4, 12], ghost: { snare: [7, 9, 15] }, kick: [0, 3, 10] } },
   { name: 'Flam backbeat', level: 'Advanced', spec: { hihat: E, flam: { snare: [12] }, snare: [4], kick: [0, 8, 10] } },
   { name: 'Triplet fill', level: 'Advanced', spec: { trip: [3], hihat: [0, 2, 4, 6, 8, 10], snare: [4, 12, 13], tom1: [14], kick: [0, 8] } },
+  { name: 'Paradiddle', level: 'Intermediate', spec: { snare: S, accent: { snare: Q }, sticking: { R: [0, 2, 3, 5, 8, 10, 11, 13], L: [1, 4, 6, 7, 9, 12, 14, 15] } } },
+  { name: 'Drags and a roll', level: 'Advanced', spec: { snare: [0, 8], drag: { snare: [4] }, roll: { snare: [12] }, kick: Q } },
   { name: 'Cross-stick ballad', level: 'Intermediate', spec: { hihat: E, cross: { snare: [4, 12] }, kick: [0, 6, 8] } },
   { name: 'Ride bell groove', level: 'Intermediate', spec: { ride: E, bell: { ride: Q }, snare: [4, 12], kick: [0, 8, 10] } },
   { name: '2/4 march', level: 'Beginner', spec: { meter: '2/4', hihat: [0, 2, 4, 6], snare: [4], kick: [0] } },
@@ -98,11 +106,15 @@ export function emptyPattern(meter = '4/4') {
 export function copyMeta(from, to) {
   if (from.meter && from.meter !== '4/4') to.meter = from.meter;
   if (from.trip?.some(Boolean)) to.trip = [...from.trip];
+  if (from.stick?.some(Boolean)) to.stick = [...from.stick];
   if (from.long) to.long = true;
   return to;
 }
 
-const MARKS = { accent: NOTE.ACCENT, ghost: NOTE.GHOST, open: NOTE.OPEN, flam: NOTE.FLAM, cross: NOTE.CROSS, bell: NOTE.BELL };
+const MARKS = {
+  accent: NOTE.ACCENT, ghost: NOTE.GHOST, open: NOTE.OPEN, flam: NOTE.FLAM, cross: NOTE.CROSS, bell: NOTE.BELL,
+  rim: NOTE.RIM, drag: NOTE.DRAG, roll: NOTE.ROLL, tie: NOTE.TIE,
+};
 
 /**
  * spec: { instrumentId: slots[], meter?, trip?: beats[], long?: true,
@@ -123,6 +135,12 @@ export function makeGroove(name, spec = {}) {
     for (const b of spec.trip) pattern.trip[b] = 1;
   }
   if (spec.long) pattern.long = true;
+  // sticking: { R: slots[], L: slots[] } writes which hand plays each note.
+  if (spec.sticking) {
+    pattern.stick = Array(barSlots(pattern)).fill(0);
+    for (const s of spec.sticking.R || []) pattern.stick[s] = 1;
+    for (const s of spec.sticking.L || []) pattern.stick[s] = 2;
+  }
   return { name, pattern };
 }
 
@@ -154,6 +172,11 @@ export function normalizeGroove(g) {
   }
   for (const k of KIT) for (let b = 0; b < beatsOf(pattern); b++) if (isTrip(pattern, b)) pattern[k.id][b * 4 + 3] = 0;
   if (g.pattern.long) pattern.long = true;
+  if (Array.isArray(g.pattern.stick)) {
+    const hand = (i) => (isTrip(pattern, i >> 2) && (i & 3) === 3 ? 0 : g.pattern.stick[i] === 1 || g.pattern.stick[i] === 2 ? g.pattern.stick[i] : 0);
+    const stick = Array.from({ length: n }, (_, i) => hand(i));
+    if (stick.some(Boolean)) pattern.stick = stick;
+  }
   return { name: String(g.name || 'My groove'), pattern };
 }
 

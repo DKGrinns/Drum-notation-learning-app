@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { tapSession } from '../public/js/tap.js';
 import { DEFAULT_MAP, noteName } from '../public/js/midi.js';
 
-const TYPE = { 1: 'normal', 2: 'accent', 3: 'ghost', 4: 'open', 5: 'flam', 6: 'cross-stick', 7: 'bell' };
+const TYPE = { 1: 'normal', 2: 'accent', 3: 'ghost', 4: 'open', 5: 'flam', 6: 'cross-stick', 7: 'bell', 8: 'rimshot', 9: 'drag', 10: 'roll', 11: 'tie' };
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 const median = (a) => (a.length ? [...a].sort((x, y) => x - y)[a.length >> 1] : 0);
 

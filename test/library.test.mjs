@@ -33,7 +33,7 @@ test('a broken or hostile link is refused, not loaded', () => {
   assert.equal(decodeGroove('not a groove'), null);
   assert.equal(decodeGroove(''), null);
   assert.equal(decodeGroove(btoa(JSON.stringify({ v: 1, b: Array(50).fill({}) }))), null); // far too many bars
-  const odd = decodeGroove(btoa(JSON.stringify({ v: 1, n: 'x'.repeat(500), t: 99999, b: [{ snare: '9z1' }] })));
+  const odd = decodeGroove(btoa(JSON.stringify({ v: 1, n: 'x'.repeat(500), t: 99999, b: [{ snare: 'zy1' }] })));
   assert.equal(odd.name.length, 40);
   assert.equal(odd.bpm, 220);
   assert.deepEqual(odd.bars[0].snare.slice(0, 3), [0, 0, 1]); // nonsense values are dropped
@@ -61,6 +61,14 @@ test('cross-sticks and ride bells keep their own notes', () => {
   assert.ok(text.includes('153,37,90')); // cross-stick
   assert.ok(text.includes('153,53,100')); // ride bell
   assert.ok(text.includes('255,88,4,5,2')); // 5/4
+});
+
+test('stickings and the newer note types survive a share link', () => {
+  const p = makeGroove('', { snare: [0, 4, 8, 12], rim: { snare: [0] }, drag: { snare: [4] }, roll: { snare: [8] }, tie: { snare: [12] }, sticking: { R: [0, 8], L: [4] } }).pattern;
+  assert.deepEqual(p.stick.slice(0, 9), [1, 0, 0, 0, 2, 0, 0, 0, 1]);
+  assert.deepEqual(decodeGroove(encodeGroove({ name: 'All', bars: [p], bpm: 90 })).bars, [p]);
+  const text = [...grooveToMidi({ name: 'All', bars: [p], bpm: 90 })].join(',');
+  assert.ok(text.includes('153,40,96')); // the rimshot
 });
 
 test('file names are safe', () => {

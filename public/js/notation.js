@@ -163,24 +163,61 @@ function drawGhost(g, x, y, s, color) {
 /** Room (in staff spaces) a flam's grace note needs to the left of its note. */
 const GRACE_DX = 1.75;
 
-/** Flam: a small slashed grace note just before the main note, joined by a slur. */
-function drawGrace(g, x, y, s, color) {
-  const gx = x - GRACE_DX * s;
+/** How far apart (in staff spaces) the two grace notes of a drag sit. */
+const DRAG_DX = 0.95;
+
+/**
+ * Flam: a small slashed grace note just before the main note, joined by a slur.
+ * Drag (count 2): two small notes joined by a beam, with no slash.
+ */
+function drawGrace(g, x, y, s, color, count = 1) {
   const r = 0.62;
-  el(g, 'ellipse', { cx: gx, cy: y, rx: s * 0.6 * r, ry: s * 0.42 * r, transform: `rotate(-20 ${gx} ${y})`, fill: color });
-  const sx = gx + s * 0.56 * r;
   const top = y - s * 2.3;
-  el(g, 'line', { x1: sx, x2: sx, y1: y, y2: top, stroke: color, 'stroke-width': s * 0.1 });
-  el(g, 'path', {
-    d: `M${sx} ${top} c ${0.06 * s} ${0.55 * s} ${0.7 * s} ${0.7 * s} ${0.52 * s} ${1.5 * s}`,
-    fill: 'none', stroke: color, 'stroke-width': s * 0.14, 'stroke-linecap': 'round',
-  });
-  el(g, 'line', { x1: sx - 0.45 * s, y1: top + 1.25 * s, x2: sx + 0.5 * s, y2: top + 0.45 * s, stroke: color, 'stroke-width': s * 0.1 });
+  const stems = [];
+  for (let i = 0; i < count; i++) {
+    const gx = x - (GRACE_DX + i * DRAG_DX) * s;
+    el(g, 'ellipse', { cx: gx, cy: y, rx: s * 0.6 * r, ry: s * 0.42 * r, transform: `rotate(-20 ${gx} ${y})`, fill: color });
+    const sx = gx + s * 0.56 * r;
+    stems.push(sx);
+    el(g, 'line', { x1: sx, x2: sx, y1: y, y2: top, stroke: color, 'stroke-width': s * 0.1 });
+  }
+  const sx = stems[0];
+  if (count === 1) {
+    el(g, 'path', {
+      d: `M${sx} ${top} c ${0.06 * s} ${0.55 * s} ${0.7 * s} ${0.7 * s} ${0.52 * s} ${1.5 * s}`,
+      fill: 'none', stroke: color, 'stroke-width': s * 0.14, 'stroke-linecap': 'round',
+    });
+    el(g, 'line', { x1: sx - 0.45 * s, y1: top + 1.25 * s, x2: sx + 0.5 * s, y2: top + 0.45 * s, stroke: color, 'stroke-width': s * 0.1 });
+  } else {
+    for (const dy of [0, 0.42]) el(g, 'rect', { x: stems[count - 1] - s * 0.05, y: top + dy * s, width: sx - stems[count - 1] + s * 0.1, height: s * 0.26, fill: color });
+  }
+  const gx = x - (GRACE_DX + (count - 1) * DRAG_DX) * s;
   el(g, 'path', {
     d: `M${gx + 0.1 * s} ${y + 0.55 * s}Q${(gx + x) / 2} ${y + 1.25 * s} ${x - 0.45 * s} ${y + 0.6 * s}`,
     fill: 'none', stroke: color, 'stroke-width': s * 0.1, 'stroke-linecap': 'round',
   });
 }
+
+/** Tie: a curve from the note before, on the side away from the stems. */
+function drawTie(g, x1, x2, y, s, up, color) {
+  const d = up ? 1 : -1;
+  el(g, 'path', {
+    d: `M${x1} ${y + d * 0.6 * s}Q${(x1 + x2) / 2} ${y + d * 1.5 * s} ${x2} ${y + d * 0.6 * s}`,
+    fill: 'none', stroke: color, 'stroke-width': s * 0.13, 'stroke-linecap': 'round',
+  });
+}
+
+/** Sticking: R or L under each note that has one. */
+function drawSticking(g, pattern, L, y, s) {
+  pattern.stick?.forEach((v, slot) => {
+    if (!v) return;
+    const t = el(g, 'text', { x: L.xOf(slot), y, class: 'sticking', 'font-size': s * 1.25, 'text-anchor': 'middle', 'dominant-baseline': 'central' });
+    t.textContent = v === 1 ? 'R' : 'L';
+  });
+}
+
+/** How far below the bottom staff line (in staff spaces) the sticking letters sit. */
+const STICK_Y = 4.1;
 
 // ---------- Rhythm analysis ----------
 //
@@ -305,6 +342,7 @@ function naturalLayout(pattern, width, s, voices, x0 = LEFT, x1 = width - RIGHT)
         if (o.flag) room(o.pos, 0.8);
         else if (o.dot) room(o.pos, 0.35);
         if (o.vals.includes(NOTE.FLAM)) before.set(o.pos, 0.9);
+        if (o.vals.includes(NOTE.DRAG)) before.set(o.pos, 1.5);
         if (o.vals.includes(NOTE.GHOST)) room(o.pos, Math.max(extra.get(o.pos) || 0, 0.25));
       }
     }
@@ -316,7 +354,7 @@ function naturalLayout(pattern, width, s, voices, x0 = LEFT, x1 = width - RIGHT)
     const beatGap = Math.floor((next - 1e-6) / 4) > Math.floor(p / 4) ? 0.4 : 0;
     return Math.max(1, next - p) ** 0.62 + beatGap + (next - p < 4 ? extra.get(p) || 0 : 0) + (before.get(cols[i + 1]) || 0);
   });
-  const lead = s * (1.05 + (before.has(cols[0]) ? GRACE_DX * 0.9 : 0));
+  const lead = s * (1.05 + (before.has(cols[0]) ? GRACE_DX * 0.9 + (before.get(cols[0]) > 1 ? DRAG_DX : 0) : 0));
   const tail = s * 0.4;
   const unit = (x1 - x0 - lead - tail) / weights.reduce((a, w) => a + w, 0);
   const xs = [];
@@ -353,6 +391,7 @@ function drawVoice(c, beats, up) {
     el(g, 'rect', { x: Math.min(x1, x2) - s * 0.065, y, width: Math.abs(x2 - x1) + s * 0.13, height: th, fill: color });
   };
 
+  let last = null; // the note before, for ties
   for (const beat of beats) {
     if (beat.covered) continue;
     const { notes, rest, trip } = beat;
@@ -400,7 +439,11 @@ function drawVoice(c, beats, up) {
         drawLedgers(g, o.x, k.step, yOf, s);
         // A cross-stick is an x where the snare goes; the ride's bell is a diamond.
         const head = o.vals[n] === NOTE.CROSS ? 'x' : o.vals[n] === NOTE.BELL ? 'diamond' : k.head;
-        drawHead(g, head, o.x, y, s, colors[`${k.id}:${o.slot}`] || 'currentColor', {}, o.hollow ? (o.long === 16 ? 'whole' : 'half') : null);
+        const ink = colors[`${k.id}:${o.slot}`] || 'currentColor';
+        drawHead(g, head, o.x, y, s, ink, {}, o.hollow ? (o.long === 16 ? 'whole' : 'half') : null);
+        // A rimshot is a note with a slash through it.
+        if (o.vals[n] === NOTE.RIM) el(g, 'line', { x1: o.x - s * 0.95, y1: y + s * 0.78, x2: o.x + s * 0.95, y2: y - s * 0.78, stroke: ink, 'stroke-width': s * 0.15, 'stroke-linecap': 'round' });
+        if (o.vals[n] === NOTE.TIE) drawTie(g, last ? last.x + hw * 0.9 : o.x - s * 2.4, o.x - hw * 0.9, y, s, up, ink);
         if (o.dot) {
           const onLine = k.step % 2 === 0;
           el(g, 'circle', { cx: o.x + hw + 0.5 * s, cy: onLine ? y - s / 2 : y, r: s * 0.17, fill: o.ink });
@@ -411,11 +454,20 @@ function drawVoice(c, beats, up) {
         const color = colors[`${k.id}:${o.slot}`] || 'currentColor';
         if (o.vals[n] === NOTE.GHOST) drawGhost(g, o.x, yOf(k.step), s, color);
         if (o.vals[n] === NOTE.FLAM) drawGrace(g, o.x, yOf(k.step), s, color);
+        if (o.vals[n] === NOTE.DRAG) drawGrace(g, o.x, yOf(k.step), s, color, 2);
       });
       const end = o.stem ? o.beamY ?? o.tip + sg * stemLen : o.tip;
       o.reach = end;
+      last = o;
       if (!o.stem) continue;
       el(g, 'line', { x1: o.sx, x2: o.sx, y1: o.base, y2: end, stroke: o.ink, 'stroke-width': s * 0.13 });
+      if (o.vals.includes(NOTE.ROLL)) {
+        // A roll: three short slashes across the stem.
+        const my = o.tip + (end - o.tip) * 0.5;
+        for (const dy of [-0.5, 0, 0.5]) {
+          el(g, 'line', { x1: o.sx - s * 0.55, x2: o.sx + s * 0.55, y1: my + (dy + 0.22) * s, y2: my + (dy - 0.22) * s, stroke: o.ink, 'stroke-width': s * 0.22 });
+        }
+      }
       if (o.beamY == null && o.beams) drawFlags(g, o.beams, o.sx, end, up, s, o.ink);
     }
 
@@ -515,6 +567,7 @@ export function renderPattern(host, { pattern, layout = 'natural', res = 1, colo
   const c = { g, s, yOf, L, colors };
   drawVoice(c, upBeats, true);
   if (downBeats) drawVoice(c, downBeats, false);
+  drawSticking(g, pattern, L, yOf(0) + s * STICK_Y, s);
 
   if (fit) {
     let box = null;
@@ -574,7 +627,8 @@ export function renderChart(host, { bars, colors = {}, endings = null, full = fa
   const lines = Math.ceil(bars.length / perLine);
   const top = s * (endings ? 7 : 5.6); // room above the staff for cymbals, stems, accents (and ending brackets)
   const lowFoot = bars.some((p) => p.hhfoot?.some(Boolean)); // the hi-hat foot sits below the staff
-  const lineH = top + s * (lowFoot ? 8.6 : 7.6); // …and below it for the kick's stems and rests
+  const sticks = bars.some((p) => p.stick?.some(Boolean)); // sticking letters go lowest of all
+  const lineH = top + s * (sticks ? 9.6 : lowFoot ? 8.6 : 7.6); // …and below it for the kick's stems and rests
 
   const scroller = document.createElement('div');
   scroller.className = 'chart-scroll';
@@ -630,6 +684,7 @@ export function renderChart(host, { bars, colors = {}, endings = null, full = fa
       const c = { g, s, yOf, L, colors: own };
       drawVoice(c, upBeats, true);
       if (downBeats) drawVoice(c, downBeats, false);
+      drawSticking(g, pattern, L, yOf(0) + s * STICK_Y, s);
       where.push({ L, line });
     });
   }
