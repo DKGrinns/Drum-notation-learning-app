@@ -110,6 +110,23 @@ test('in 7/8 every 8th note gets the same room on the grid', () => {
   assert.deepEqual(texts(h, 'tuplet'), []); // three real 8ths, not a triplet
 });
 
+test('32nd notes get three beams and a sextuplet gets a 6', () => {
+  const beams = (spec) => tags(draw(spec, { width: 760 }).h, 'rect').filter((e) => !e.attrs.class && Number(e.attrs.height) < 8 && Number(e.attrs.width) > 8).length;
+  // Four 16ths: one long beam and one second beam between each pair = 1 + 3.
+  assert.equal(beams({ snare: [0, 1, 2, 3] }), 4);
+  // Eight 32nds: one long beam, then seven joins on each of the two inner levels.
+  assert.equal(beams({ snare: [0, 1, 2, 3], fine: [0], x: { snare: [0, 1, 2, 3] } }), 1 + 7 + 7);
+  const six = draw({ trip: [0], fine: [0], snare: [0, 1, 2], x: { snare: [0, 1, 2] } }).h;
+  assert.deepEqual(texts(six, 'tuplet'), ['6']);
+  assert.equal(tags(six, 'ellipse').length, 6);
+  for (const layout of ['natural', 'grid']) {
+    const { h, staff } = draw({ snare: [0, 1, 2, 3], fine: [0], x: { snare: [0, 1, 2, 3] } }, { layout });
+    assertClean(h, `32nds (${layout})`);
+    const xs = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5].map((sl) => staff.xOf(sl));
+    for (let i = 1; i < xs.length; i++) assert.ok(xs[i] > xs[i - 1] + 2, `32nds ${i - 1} and ${i} overlap (${layout})`);
+  }
+});
+
 test('a chart wraps onto lines and labels its endings', () => {
   const chart = G.randomChart(0, { repeat: true });
   const h = host(340);

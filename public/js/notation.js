@@ -7,7 +7,7 @@
 import { KIT } from './kit.js';
 import {
   meterOf, beatsOf, barSlots, isTrip as tripOf, isTuplet, isCompound, slotPos as posOf, NOTE,
-  isLongBeat, barLength, beatStart, beatLen, beatAt,
+  isLongBeat, barLength, beatStart, beatLen, beatAt, isFine, allSlots, noteAt, rowHas,
 } from './grooves.js';
 
 /** Horizontal gutters shared with the step grid so columns line up exactly. */
@@ -109,7 +109,7 @@ function drawRest(g, dur, x, cy, s, dotted = false) {
     });
     return;
   }
-  const flags = dur === 1 ? 2 : 1;
+  const flags = dur === 0.5 ? 3 : dur === 1 ? 2 : 1; // 32nd, 16th or 8th rest
   const topX = x + 0.42 * s;
   const topY = cy - 0.75 * s;
   const len = 1.75 * s + (flags - 1) * 0.8 * s;
@@ -237,9 +237,11 @@ function analyzeVoice(pattern, kit) {
   const len = barSlots(pattern);
   const beats = beatsOf(pattern);
   const compound = isCompound(pattern);
-  for (let slot = 0; slot < len; slot++) {
-    const insts = kit.filter((k) => pattern[k.id]?.[slot]);
-    if (insts.length) ons.push({ slot, b: slot >> 2, j: slot & 3, pos: posOf(pattern, slot), insts, vals: insts.map((k) => pattern[k.id][slot]) });
+  // Half slots (8.5 and so on) are the extra notes of a beat split in 32nds or sextuplets.
+  for (const slot of allSlots(pattern)) {
+    const insts = kit.filter((k) => noteAt(pattern, k.id, slot));
+    const b = slot >> 2;
+    if (insts.length) ons.push({ slot, b, j: slot - b * 4, pos: posOf(pattern, slot), insts, vals: insts.map((k) => noteAt(pattern, k.id, slot)) });
   }
 
   // Long notes: the longest standard value that fits the silence after the note.
@@ -267,7 +269,7 @@ function analyzeVoice(pattern, kit) {
     const start = cover[b];
     const notes = ons.filter((o) => o.b === b);
     // A beat that is three real 8ths long (all of 6/8, the last beat of 7/8) is written without a "3".
-    const beat = { b, trip, tuplet: isTuplet(pattern, b), compound: compound || isLongBeat(pattern, b), covered: start >= 4, notes, rest: null };
+    const beat = { b, trip, tuplet: isTuplet(pattern, b), fine: isFine(pattern, b), compound: compound || isLongBeat(pattern, b), covered: start >= 4, notes, rest: null };
     if (beat.covered) return beat;
     if (!notes.length) {
       if (start === 0) beat.rest = { pos: b * 4, units, whole: true };
@@ -284,11 +286,11 @@ function analyzeVoice(pattern, kit) {
         o.hollow = o.long >= 8;
         o.stem = o.long < 16;
       } else if (trip) {
-        o.beams = dur === 1 ? 1 : 0;
+        o.beams = dur < 1 ? 2 : dur < 2 ? 1 : 0; // half a slot is a 16th here (one of a sextuplet's six)
         o.dot = beat.compound && dur === 3; // a whole compound beat is a dotted quarter
       } else {
-        o.beams = dur === 1 ? 2 : dur === 4 ? 0 : 1;
-        o.dot = dur === 3;
+        o.beams = dur < 1 ? 3 : dur < 2 ? 2 : dur < 4 ? 1 : 0; // 32nd, 16th, 8th, quarter
+        o.dot = dur === 3 || dur === 1.5;
       }
     });
     // A flagged note with no beamed neighbour gets a flag (and needs room for it).
@@ -314,11 +316,12 @@ function gridLayout(pattern, width, res) {
   const unit = (width - LEFT - RIGHT - (beats - 1) * BEAT_GAP) / barLength(pattern); // px per 16th
   const x0 = (b) => LEFT + beatStart(pattern, b) * unit + b * BEAT_GAP;
   const wOf = (b) => beatLen(pattern, b) * unit;
-  const cols = (b) => (tripOf(pattern, b) ? 3 : 4 / res);
+  const cols = (b) => (isFine(pattern, b) ? (tripOf(pattern, b) ? 6 : 8) : tripOf(pattern, b) ? 3 : 4 / res);
   const cell = (slot) => {
     const b = slot >> 2;
     const n = cols(b);
-    const c = tripOf(pattern, b) ? slot & 3 : Math.floor((slot & 3) / res);
+    const j = slot - b * 4;
+    const c = isFine(pattern, b) ? Math.round(j * 2) : tripOf(pattern, b) ? j : Math.floor(j / res);
     return { x: x0(b) + ((c + 0.5) * wOf(b)) / n, w: wOf(b) / n };
   };
   return {
@@ -407,9 +410,9 @@ function drawVoice(c, beats, up) {
     if (rest && !(rest.whole && !up)) {
       const x = L.xAt(rest.pos);
       if (rest.whole) drawRest(g, 4, x, restY, s, beat.compound); // dotted quarter rest in 6/8
-      else if (trip) drawRest(g, rest.units === 2 ? 4 : 2, x, restY, s);
-      else if (rest.units === 3) drawRest(g, 2, x + s * 0.3, restY, s, true); // dotted 8th rest
-      else drawRest(g, rest.units === 1 ? 1 : 2, x, restY, s);
+      else if (trip) drawRest(g, rest.units >= 2 ? 4 : rest.units >= 1 ? 2 : 1, x, restY, s);
+      else if (rest.units >= 3) drawRest(g, 2, x + s * 0.3, restY, s, true); // dotted 8th rest
+      else drawRest(g, rest.units >= 2 ? 2 : rest.units >= 1 ? 1 : 0.5, x, restY, s);
     }
     if (!notes.length) continue;
 
@@ -499,17 +502,20 @@ function drawVoice(c, beats, up) {
       const y0 = grp[0].beamY;
       const ink = grp.every((o) => o.ink === MUTED) ? MUTED : 'currentColor';
       beam(grp[0].sx, grp[grp.length - 1].sx, y0, 0, ink);
-      grp.forEach((o, i) => {
-        if (o.beams !== 2) return;
-        const prev = grp[i - 1];
-        const next = grp[i + 1];
-        if (next && next.beams === 2) beam(o.sx, next.sx, y0, 1, ink);
-        else if (!(prev && prev.beams === 2)) {
-          const stub = s * 1.0;
-          if (i === grp.length - 1) beam(o.sx - stub, o.sx, y0, 1, ink);
-          else beam(o.sx, o.sx + stub, y0, 1, ink);
-        }
-      });
+      // The second beam joins 16ths (and anything shorter); the third joins 32nds.
+      for (let level = 1; level <= 2; level++) {
+        grp.forEach((o, i) => {
+          if (o.beams <= level) return;
+          const prev = grp[i - 1];
+          const next = grp[i + 1];
+          if (next && next.beams > level) beam(o.sx, next.sx, y0, level, ink);
+          else if (!(prev && prev.beams > level)) {
+            const stub = s * 1.0;
+            if (i === grp.length - 1) beam(o.sx - stub, o.sx, y0, level, ink);
+            else beam(o.sx, o.sx + stub, y0, level, ink);
+          }
+        });
+      }
     }
 
     // Triplet "3", with a bracket unless a single beam already joins the whole beat.
@@ -533,7 +539,7 @@ function drawVoice(c, beats, up) {
         x: mid, y: edge, class: 'tuplet', 'font-size': s * 1.35,
         'text-anchor': 'middle', 'dominant-baseline': 'central',
       });
-      t.textContent = '3';
+      t.textContent = beat.fine ? '6' : '3';
       if (notes.every((o) => o.ink === MUTED)) t.style.fill = MUTED;
     }
   }
@@ -554,7 +560,7 @@ export function renderPattern(host, { pattern, layout = 'natural', res = 1, colo
   const { yOf, height } = geometry(s);
   const svg = makeSvg(host, width, height);
 
-  const hasKick = DOWN_KIT.some((k) => pattern[k.id]?.some(Boolean));
+  const hasKick = DOWN_KIT.some((k) => rowHas(pattern, k.id));
   const upBeats = analyzeVoice(pattern, UP_KIT);
   const downBeats = hasKick ? analyzeVoice(pattern, DOWN_KIT) : null;
   const L = layout === 'grid'
@@ -618,12 +624,12 @@ export function renderPattern(host, { pattern, layout = 'natural', res = 1, colo
 export function renderChart(host, { bars, colors = {}, endings = null, full = false, s }) {
   const width = Math.max(260, Math.floor(host.clientWidth) || 320);
   s = s || Math.max(8.5, Math.min(10.5, width / 42));
-  const hasKick = bars.some((p) => DOWN_KIT.some((k) => p[k.id]?.some(Boolean)));
+  const hasKick = bars.some((p) => DOWN_KIT.some((k) => rowHas(p, k.id)));
 
   // Bars per line: as many as fit without crowding the busiest bar (1, 2 or 4).
   const busiest = Math.max(...bars.map((p) => {
     const used = new Set();
-    for (const k of KIT) p[k.id].forEach((v, i) => v && used.add(i));
+    for (const k of KIT) for (const sl of allSlots(p)) if (noteAt(p, k.id, sl)) used.add(sl);
     return used.size;
   }));
   const fitsAt = (sp) => Math.floor((width - LEFT - 12) / (busiest * sp * 1.25 + sp * 2));

@@ -82,6 +82,13 @@ test('a 7/8 MIDI file is seven 8ths long', () => {
   assert.ok(kickAt > 0);
 });
 
+test('32nd notes survive a share link and reach the MIDI file', () => {
+  const p = makeGroove('', { snare: [0, 8, 9, 10, 11], fine: [2], x: { snare: [8, 9, 10, 11] } }).pattern;
+  assert.deepEqual(decodeGroove(encodeGroove({ name: 'Fast', bars: [p], bpm: 80 })).bars, [p]);
+  const bytes = [...grooveToMidi({ name: 'Fast', bars: [p], bpm: 80 })];
+  assert.equal(bytes.filter((b, i, all) => b === 0x99 && all[i + 1] === 38 && all[i + 2] === 96).length, 9);
+});
+
 test('file names are safe', () => {
   assert.equal(fileName('Rock Beat #1!', 'mid'), 'rock-beat-1.mid');
   assert.equal(fileName('///', 'png'), 'groove.png');

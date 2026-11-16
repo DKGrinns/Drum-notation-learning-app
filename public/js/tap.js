@@ -9,7 +9,7 @@
 // checked too. That is reported next to the timing score, not folded into it.
 import { h } from './ui.js';
 import { KIT } from './kit.js';
-import { barSlots, barLength, slotPos, nearestGap, NOTE, isHit } from './grooves.js';
+import { barSlots, barLength, slotPos, nearestGap, NOTE, isHit, allSlots, noteAt } from './grooves.js';
 import { audioTimeAt } from './audio.js';
 import { store } from './store.js';
 import { midiOffset, onMidiHit } from './midi.js';
@@ -49,10 +49,10 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
   for (let n = 0; n < loops * ord.length; n++) {
     const bar = ord[n % ord.length];
     const p = seq[bar];
-    for (let slot = 0; slot < len; slot++) {
+    for (const slot of allSlots(p)) {
       for (const id of ids) {
-        if (isHit(p[id][slot])) {
-          expected.push({ id, slot, bar, value: p[id][slot], time: startTime + (n * barLen + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
+        if (isHit(noteAt(p, id, slot))) {
+          expected.push({ id, slot, bar, value: noteAt(p, id, slot), time: startTime + (n * barLen + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
         }
       }
     }

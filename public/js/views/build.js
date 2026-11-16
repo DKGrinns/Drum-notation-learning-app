@@ -5,7 +5,7 @@ import { download, shareGroove, groovePng } from '../export.js';
 import { KIT } from '../kit.js';
 import {
   PRESETS, METERS, NOTE, NOTE_TYPES, noteTypeFits, makeGroove, clonePattern, normalizeGroove, normalizeChart, emptyPattern,
-  subdivision, subdivisionLabel, isTrip, isCompound, countLabel, beatsOf, meterOf, repeatForm, isLongBeat, beatLen,
+  subdivision, subdivisionLabel, isTrip, isCompound, countLabel, beatsOf, meterOf, repeatForm, isLongBeat, beatLen, isFine, noteAt, setNote,
 } from '../grooves.js';
 import { renderPattern, renderChart, LEFT, RIGHT, BEAT_GAP } from '../notation.js';
 import { transport, playInstrument, playNote } from '../audio.js';
@@ -16,7 +16,7 @@ export const title = 'Build';
 const STRAIGHT = ['', 'e', '&', 'a'];
 const TRIPLET = ['', 'trip', 'let'];
 const COMPOUND = ['', '&', 'a'];
-const UNITS = 12; // grid columns per beat: 16ths span 3, 8ths 6, triplets 4
+const UNITS = 24; // grid columns per beat: 32nds span 3, 16ths 6, 8ths 12, triplets 8, sextuplets 4
 const TYPE_NAME = Object.fromEntries(NOTE_TYPES.map((t) => [t.value, t.name]));
 const MAX_BARS = 16;
 
@@ -87,6 +87,8 @@ export function mount(root, nav) {
   const beatToggles = h('div', { class: 'beat-toggles', role: 'group', 'aria-label': 'Triplet beats' });
   const tripRow = row(['Triplets', h('span', { class: 'row-sub' }, 'Three per beat')], beatToggles);
   const longSwitch = toggle(!!S.groove.pattern.long, setLong, 'Long notes');
+  const fineToggles = h('div', { class: 'beat-toggles', role: 'group', 'aria-label': 'Finer beats' });
+  const fineRow = row(['Finer notes', h('span', { class: 'row-sub' }, '32nds, or sextuplets on a triplet beat')], fineToggles);
   const bpmStepper = stepper({
     value: S.bpm, min: 40, max: 220, step: 2, label: 'tempo',
     onChange: (v) => {
@@ -123,6 +125,7 @@ export function mount(root, nav) {
     meterSeg,
     h('div', { class: 'list' },
       tripRow,
+      fineRow,
       row(['Long notes', h('span', { class: 'row-sub' }, 'Write halves and dotted quarters')], longSwitch),
       repeatRow,
       row('Metronome', toggle(S.click, (v) => {
@@ -139,7 +142,7 @@ export function mount(root, nav) {
       'Tap a square to add a note — the staff writes it for you. Pick another kind of note above (Cross is a cross-stick, Bell the ride’s bell, Rim a rimshot; a Tie is held, not played), then tap a note to change it. The Sticking row writes R or L under a note. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on), up to 16; your bars play in order and show up in Play as “My groove”. With three or more bars you can turn on a repeat with two endings.'),
   );
 
-  els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount, repeatSwitch, repeatRow };
+  els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount, repeatSwitch, repeatRow, fineToggles };
   updatePlayBtn();
   updateSavedCount();
   renderAll();
@@ -240,6 +243,14 @@ function renderAll() {
     hidden: isLongBeat(p, b), // already three 8ths long
     onClick: () => toggleTrip(b),
   }, String(b + 1))));
+  // Finer-note toggles: one per beat.
+  els.fineToggles.replaceChildren(...Array.from({ length: beatsOf(p) }, (_, b) => h('button', {
+    type: 'button',
+    class: `beat-toggle${isFine(p, b) ? ' on' : ''}`,
+    'aria-pressed': isFine(p, b),
+    'aria-label': `Finer notes on beat ${b + 1}`,
+    onClick: () => toggleFine(b),
+  }, String(b + 1))));
   els.longSwitch.checked = !!p.long;
   els.repeatSwitch.checked = S.repeat;
   els.repeatRow.hidden = S.bars.length < 3;
@@ -254,13 +265,20 @@ function renderStaff() {
 
 /** The columns of one beat: [{ slot, j, label }] */
 function beatCols(b) {
+  const cols = plainCols(b);
+  // A finer beat has a narrow extra column after each one: the note halfway to the next.
+  return isFine(S.groove.pattern, b) ? cols.flatMap((c) => [c, { slot: c.slot + 0.5, label: '·' }]) : cols;
+}
+
+function plainCols(b) {
   const p = S.groove.pattern;
   if (isTrip(p, b)) {
     const names = isCompound(p) ? COMPOUND : TRIPLET;
     return names.map((t, j) => ({ slot: b * 4 + j, label: j ? t : String(b + 1) }));
   }
   const out = [];
-  for (let j = 0; j < 4; j += S.res) out.push({ slot: b * 4 + j, label: j ? STRAIGHT[j] : String(b + 1) });
+  // A finer beat always shows its 16ths, whatever the grid is set to.
+  for (let j = 0; j < 4; j += isFine(p, b) ? 1 : S.res) out.push({ slot: b * 4 + j, label: j ? STRAIGHT[j] : String(b + 1) });
   return out;
 }
 
@@ -269,14 +287,15 @@ function beatColsFor(b) {
   const p = S.groove.pattern;
   const cols = beatCols(b);
   // 7/8 is counted in 8ths (1 to 7), with "&" for a 16th in between.
-  if (meterOf(p).odd) for (const c of cols) c.label = countLabel(c.slot, p).split(' ').pop();
+  if (meterOf(p).odd) for (const c of cols) if (Number.isInteger(c.slot)) c.label = countLabel(c.slot, p).split(' ').pop();
   return cols;
 }
 
 function cellLabel(k, slot) {
-  const v = S.groove.pattern[k.id][slot];
+  const v = noteAt(S.groove.pattern, k.id, slot);
   const what = v > 1 ? `${TYPE_NAME[v]} on ${k.name}` : k.name;
-  return `${what} on ${countLabel(slot, S.groove.pattern)}`;
+  const at = countLabel(Math.floor(slot), S.groove.pattern);
+  return `${what} ${Number.isInteger(slot) ? 'on' : 'just after'} ${at}`;
 }
 
 function renderGrid() {
@@ -330,6 +349,7 @@ function renderGrid() {
   for (let b = 0; b < beats; b++) {
     const cols = beatCols(b);
     cols.forEach((c, i) => {
+      if (!Number.isInteger(c.slot)) return; // sticking goes under the main notes only
       const cell = h('button', { type: 'button', 'data-slot': c.slot, style: place(sr, b, i, cols.length), onClick: () => tapStick(c.slot, cell, b) });
       paintStick(cell, c.slot, b);
       grid.append(cell);
@@ -358,7 +378,7 @@ function tapStick(slot, cell, b) {
 }
 
 function paintCell(cell, k, slot, b = slot >> 2) {
-  const v = S.groove.pattern[k.id][slot];
+  const v = noteAt(S.groove.pattern, k.id, slot);
   cell.className = `cell ${k.family}${v ? ' on' : ''}${v > 1 ? ` v${v}` : ''}${b % 2 ? ' alt' : ''}`;
   cell.setAttribute('aria-pressed', !!v);
   cell.setAttribute('aria-label', cellLabel(k, slot));
@@ -377,18 +397,21 @@ function edited() {
  * turns the note into that kind (adding it if needed), or back to a plain note.
  */
 function tapCell(k, slot, cell) {
-  const row = S.groove.pattern[k.id];
+  const p = S.groove.pattern;
+  const cur = noteAt(p, k.id, slot);
+  let next = cur;
   const type = NOTE_TYPES.find((t) => t.value === S.brush);
   if (S.brush === NOTE.HIT) {
-    row[slot] = row[slot] ? 0 : NOTE.HIT;
+    next = cur ? 0 : NOTE.HIT;
   } else if (!noteTypeFits(type, k.id)) {
     toast(`${type.label} works on ${type.where}`);
     return;
   } else {
-    row[slot] = row[slot] === S.brush ? NOTE.HIT : S.brush;
+    next = cur === S.brush ? NOTE.HIT : S.brush;
   }
+  setNote(p, k.id, slot, next);
   paintCell(cell, k, slot);
-  if (row[slot]) playNote(k.id, row[slot]);
+  if (next) playNote(k.id, next);
   edited();
   renderStaff();
 }
@@ -409,6 +432,7 @@ function toggleTrip(b) {
     if (toTrip) row[b * 4 + 3] = 0;
   }
   if (toTrip && p.stick) p.stick[b * 4 + 3] = 0;
+  if (toTrip) for (const k of KIT) if (noteAt(p, k.id, b * 4 + 3.5)) setNote(p, k.id, b * 4 + 3.5, 0);
   p.trip = p.trip || Array(beatsOf(p)).fill(0);
   p.trip[b] = toTrip ? 1 : 0;
   if (!p.trip.some(Boolean)) delete p.trip;
@@ -418,6 +442,33 @@ function toggleTrip(b) {
   if (lost) {
     toast(`Removed ${lost} note${lost === 1 ? '' : 's'} on the “a”`, { label: 'Undo', onClick: () => restore(prev) });
   } else if (resChanged) toast('Switched to the 16th-note grid');
+}
+
+/**
+ * Split a beat twice as fine (32nds, or sextuplets on a triplet beat), or put it
+ * back. Going back removes the notes that sat in between.
+ */
+function toggleFine(b) {
+  const prev = snapshot();
+  const p = S.groove.pattern;
+  let lost = 0;
+  if (isFine(p, b)) {
+    for (const k of KIT) {
+      for (let j = 0; j < 4; j++) {
+        if (!noteAt(p, k.id, b * 4 + j + 0.5)) continue;
+        setNote(p, k.id, b * 4 + j + 0.5, 0);
+        lost++;
+      }
+    }
+    p.fine[b] = 0;
+    if (!p.fine.some(Boolean)) delete p.fine;
+  } else {
+    p.fine = p.fine || Array(beatsOf(p)).fill(0);
+    p.fine[b] = 1;
+  }
+  edited();
+  renderAll();
+  if (lost) toast(`Removed ${lost} note${lost === 1 ? '' : 's'} in between`, { label: 'Undo', onClick: () => restore(prev) });
 }
 
 /**

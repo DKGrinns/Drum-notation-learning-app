@@ -89,6 +89,21 @@ test('7/8 is two ordinary beats and one that is three 8ths long', () => {
   assert.equal(G.barLength(G.makeGroove('', { meter: '6/8' }).pattern), 8);
 });
 
+test('a finer beat holds 32nd notes, or a sextuplet on a triplet beat', () => {
+  const p = G.makeGroove('', { snare: [0, 8, 9, 10, 11], fine: [2], x: { snare: [8, 9, 10, 11] } }).pattern;
+  assert.deepEqual(G.allSlots(p).filter((s) => s >= 8 && s < 12), [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5]);
+  assert.deepEqual([8, 8.5, 9, 11.5].map((s) => G.slotPos(p, s)), [8, 8.5, 9, 11.5]); // a 32nd is half a 16th
+  assert.equal(G.noteAt(p, 'snare', 9.5), G.NOTE.HIT);
+  assert.equal(G.noteAt(p, 'snare', 0.5), 0); // beat 1 isn't split
+  assert.deepEqual(G.normalizeGroove(roundTrip({ pattern: p })).pattern, p);
+  assert.deepEqual(G.clonePattern(p), p);
+  const six = G.makeGroove('', { trip: [0], fine: [0], snare: [0, 1, 2], x: { snare: [0, 1, 2] } }).pattern;
+  assert.deepEqual(G.allSlots(six).slice(0, 6).map((s) => +G.slotPos(six, s).toFixed(3)), [0, 0.667, 1.333, 2, 2.667, 3.333]); // six even notes
+  G.setNote(six, 'snare', 1.5, 0);
+  assert.equal(G.noteAt(six, 'snare', 1.5), 0);
+  assert.ok(G.usedInstruments({ pattern: G.makeGroove('', { fine: [0], x: { kick: [0] } }).pattern }).some((k) => k.id === 'kick'));
+});
+
 test('a chart without a repeat plays its bars in order', () => {
   assert.deepEqual(G.chartOrder(G.randomChart(0)), [0, 1, 2, 3]);
   assert.equal(G.normalizeChart({ bars: [G.emptyPattern()], order: [0, 5] }).order, undefined);

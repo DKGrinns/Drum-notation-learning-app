@@ -639,6 +639,7 @@ body.compact main { padding-top: 8px; }
 .cell.v10::after { content: '≋'; font-size: 13px; }  /* roll */
 .cell.v11.on { opacity: 0.5; }                       /* tie: held, not struck */
 .cell.v11::after { content: '⌣'; font-size: 14px; }
+.grid .cell[data-slot$=".5"] { margin: 0 0.5px; border-radius: 4px; }
 .cell.stick { font-size: 12px; font-weight: 700; color: var(--ink); }
 .cell.stick.on { background: var(--seg-on); box-shadow: inset 0 0 0 1.5px var(--ink3); }
 .cell.v6::after { content: '×'; font-size: 15px; }  /* cross-stick */

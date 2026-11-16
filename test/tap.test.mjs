@@ -83,6 +83,16 @@ test('in 7/8 the second time through starts seven 8ths after the first', () => {
   assert.equal(s.result().score, 100);
 });
 
+test('32nd notes are expected and scored like any other note', () => {
+  const { pattern } = makeGroove('', { snare: [0, 8, 9, 10, 11], fine: [2], x: { snare: [8, 9, 10, 11] } });
+  const s = session({ pattern, ids: ['snare'] });
+  assert.equal(s.hit('snare', at(pattern, 0)), 'good');
+  for (let i = 0; i < 8; i++) assert.equal(s.hit('snare', (1 + (8 + i / 2) * SIX) * 1000), 'good'); // eight 32nds across beat 3
+  const r = s.result();
+  assert.deepEqual([r.on, r.missed, r.extras], [9, 0, 0]);
+  assert.equal(r.colors['snare:9.5'], 'var(--green)');
+});
+
 test('a microphone hit plays whatever is due, on any drum', () => {
   const { pattern } = makeGroove('', { hihat: E, snare: [4, 12], kick: [0, 8, 11] });
   const s = session({ pattern, ids: ['hihat', 'snare', 'kick'] });

@@ -1,7 +1,7 @@
 // Saved grooves: a small library, share links, and MIDI files.
 // Nothing here touches the page, so it can be tested on its own.
 import { KIT } from './kit.js';
-import { NOTE, meterOf, slotPos, barLength, normalizeChart, clonePattern, repeatForm } from './grooves.js';
+import { NOTE, meterOf, slotPos, barLength, normalizeChart, clonePattern, repeatForm, allSlots, noteAt, rowHas } from './grooves.js';
 import { store } from './store.js';
 
 const MAX_SAVED = 100;
@@ -24,7 +24,7 @@ function entry(raw) {
 export const asChart = (e) => ({ name: e.name, bars: e.bars, ...(canRepeat(e.repeat, e.bars) ? repeatForm(e.bars.length) : {}) });
 
 export const sameBars = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-export const hasNotes = (bars) => bars.some((p) => KIT.some((k) => p[k.id].some(Boolean)));
+export const hasNotes = (bars) => bars.some((p) => KIT.some((k) => rowHas(p, k.id)));
 
 /** Every saved groove, newest first. */
 export function loadLibrary() {
@@ -65,6 +65,10 @@ export function encodeGroove({ name, bars, bpm, repeat }) {
     for (const k of KIT) if (p[k.id].some(Boolean)) row[k.id] = p[k.id].map((v) => v.toString(36)).join('');
     if (p.trip) row.trip = p.trip.join('');
     if (p.stick?.some(Boolean)) row.stick = p.stick.join('');
+    if (p.fine?.some(Boolean)) {
+      row.fine = p.fine.join('');
+      row.x = Object.fromEntries(Object.entries(p.x || {}).map(([id, r]) => [id, r.map((v) => v.toString(36)).join('')]));
+    }
     if (p.long) row.long = 1;
     return row;
   });
@@ -82,6 +86,10 @@ export function decodeGroove(code) {
       for (const k of KIT) if (row[k.id]) p[k.id] = digits(row[k.id]);
       if (row.trip) p.trip = digits(row.trip);
       if (row.stick) p.stick = digits(row.stick);
+      if (row.fine) {
+        p.fine = digits(row.fine);
+        p.x = Object.fromEntries(Object.entries(row.x || {}).map(([id, r]) => [id, digits(r)]));
+      }
       if (row.long) p.long = true;
       return p;
     });
@@ -119,7 +127,8 @@ export function grooveToMidi({ name = '', bars: written, bpm = 90, repeat }, loo
   for (let n = 0; n < loops * bars.length; n++) {
     const p = bars[n % bars.length];
     for (const k of KIT) {
-      p[k.id].forEach((v, slot) => {
+      allSlots(p).forEach((slot) => {
+        const v = noteAt(p, k.id, slot);
         if (!v || v === NOTE.TIE || !GM[k.id]) return;
         const t = n * barTicks + Math.round((slotPos(p, slot) * beat) / 4);
         const note = k.id === 'hihat' && v === NOTE.OPEN ? 46 : k.id === 'snare' && v === NOTE.RIM ? 40 : k.id === 'snare' && v === NOTE.CROSS ? 37 : k.id === 'ride' && v === NOTE.BELL ? 53 : GM[k.id];

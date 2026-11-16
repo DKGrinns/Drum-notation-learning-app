@@ -79,6 +79,8 @@ export const PRESETS = [
   { name: 'Ghost-note funk', level: 'Advanced', spec: { hihat: E, snare: [4, 12], ghost: { snare: [7, 9, 15] }, kick: [0, 3, 10] } },
   { name: 'Flam backbeat', level: 'Advanced', spec: { hihat: E, flam: { snare: [12] }, snare: [4], kick: [0, 8, 10] } },
   { name: 'Triplet fill', level: 'Advanced', spec: { trip: [3], hihat: [0, 2, 4, 6, 8, 10], snare: [4, 12, 13], tom1: [14], kick: [0, 8] } },
+  { name: '32nd-note hats', level: 'Advanced', spec: { hihat: [0, 2, 4, 6, 8, 10, 12, 13, 14, 15], fine: [3], x: { hihat: [12, 13, 14, 15] }, snare: [4, 12], kick: [0, 8, 10] } },
+  { name: 'Sextuplet fill', level: 'Advanced', spec: { hihat: [0, 2, 4, 6, 8, 10], trip: [3], fine: [3], snare: [4, 12, 13, 14], x: { snare: [12, 13, 14] }, kick: [0, 8] } },
   { name: 'Paradiddle', level: 'Intermediate', spec: { snare: S, accent: { snare: Q }, sticking: { R: [0, 2, 3, 5, 8, 10, 11, 13], L: [1, 4, 6, 7, 9, 12, 14, 15] } } },
   { name: 'Drags and a roll', level: 'Advanced', spec: { snare: [0, 8], drag: { snare: [4] }, roll: { snare: [12] }, kick: Q } },
   { name: 'Cross-stick ballad', level: 'Intermediate', spec: { hihat: E, cross: { snare: [4, 12] }, kick: [0, 6, 8] } },
@@ -110,6 +112,10 @@ export function copyMeta(from, to) {
   if (from.meter && from.meter !== '4/4') to.meter = from.meter;
   if (from.trip?.some(Boolean)) to.trip = [...from.trip];
   if (from.stick?.some(Boolean)) to.stick = [...from.stick];
+  if (from.fine?.some(Boolean)) {
+    to.fine = [...from.fine];
+    if (from.x) to.x = Object.fromEntries(Object.entries(from.x).map(([id, row]) => [id, [...row]]));
+  }
   if (from.long) to.long = true;
   return to;
 }
@@ -138,6 +144,12 @@ export function makeGroove(name, spec = {}) {
     for (const b of spec.trip) pattern.trip[b] = 1;
   }
   if (spec.long) pattern.long = true;
+  // fine: beats split twice as fine; x: { drum: slots[] } puts a note halfway after each of those slots.
+  if (spec.fine?.length) {
+    pattern.fine = Array(beatsOf(pattern)).fill(0);
+    for (const b of spec.fine) pattern.fine[b] = 1;
+    for (const [id, slots] of Object.entries(spec.x || {})) for (const s of slots) setNote(pattern, id, s + 0.5, NOTE.HIT);
+  }
   // sticking: { R: slots[], L: slots[] } writes which hand plays each note.
   if (spec.sticking) {
     pattern.stick = Array(barSlots(pattern)).fill(0);
@@ -180,6 +192,18 @@ export function normalizeGroove(g) {
     const stick = Array.from({ length: n }, (_, i) => hand(i));
     if (stick.some(Boolean)) pattern.stick = stick;
   }
+  if (Array.isArray(g.pattern.fine) && g.pattern.fine.some(Boolean)) {
+    pattern.fine = Array.from({ length: beatsOf(pattern) }, (_, b) => (g.pattern.fine[b] ? 1 : 0));
+    for (const k of KIT) {
+      const row = g.pattern.x?.[k.id];
+      if (!Array.isArray(row)) continue;
+      for (let i = 0; i < n; i++) {
+        const v = Math.round(Number(row[i]) || 0);
+        const fits = pattern.fine[i >> 2] && !(isTrip(pattern, i >> 2) && (i & 3) === 3);
+        if (fits && v >= 1 && v <= NOTE_MAX) setNote(pattern, k.id, i + 0.5, v);
+      }
+    }
+  }
   return { name: String(g.name || 'My groove'), pattern };
 }
 
@@ -213,7 +237,7 @@ export function beatAt(p, pos) {
 /** Where a slot falls in the bar, in 16ths of a beat (three-way beats land on thirds). */
 export function slotPos(p, slot) {
   const b = slot >> 2;
-  const j = slot & 3;
+  const j = slot - b * 4; // may end in .5: a note halfway to the next slot (see allSlots)
   return beatStart(p, b) + (isLongBeat(p, b) ? j * 2 : isTrip(p, b) ? (j * 4) / 3 : j);
 }
 
@@ -223,6 +247,49 @@ export function validSlots(p) {
   for (let s = 0; s < barSlots(p); s++) if (!(isTrip(p, s >> 2) && (s & 3) === 3)) out.push(s);
   return out;
 }
+
+// ---------- Finer beats: 32nd notes and sextuplets ----------
+//
+// A beat marked in pattern.fine is split twice as fine: a straight beat into
+// eight 32nds, a triplet beat into six (a sextuplet). The extra notes fall
+// halfway between two slots. They are stored in pattern.x[drum][slot] ("the note
+// just after this slot") and addressed as half slots: 8.5 comes after slot 8.
+
+/** Whether a beat is split twice as fine. */
+export const isFine = (p, beat) => !!p.fine?.[beat];
+
+/** The note at a slot or half slot (0 if none). */
+export function noteAt(p, id, slot) {
+  if (Number.isInteger(slot)) return p[id][slot] || 0;
+  const at = Math.floor(slot);
+  return (isFine(p, at >> 2) && p.x?.[id]?.[at]) || 0;
+}
+
+/** Write (or with 0, remove) the note at a slot or half slot. */
+export function setNote(p, id, slot, v) {
+  if (Number.isInteger(slot)) {
+    p[id][slot] = v;
+    return;
+  }
+  p.x = p.x || {};
+  p.x[id] = p.x[id] || Array(barSlots(p)).fill(0);
+  p.x[id][Math.floor(slot)] = v;
+  if (!p.x[id].some(Boolean)) delete p.x[id];
+  if (!Object.keys(p.x).length) delete p.x;
+}
+
+/** Every place a note can go, in order, including the half slots of finer beats. */
+export function allSlots(p) {
+  const out = [];
+  for (const s of validSlots(p)) {
+    out.push(s);
+    if (isFine(p, s >> 2)) out.push(s + 0.5);
+  }
+  return out;
+}
+
+/** Whether a drum is played anywhere in the bar. */
+export const rowHas = (p, id) => p[id].some(Boolean) || !!p.x?.[id]?.some((v, i) => v && isFine(p, i >> 2));
 
 /** Count for a slot: "2 &", "3 e", "4 trip", or "2 a" in 6/8. */
 export function countLabel(slot, p = {}) {
@@ -241,7 +308,7 @@ export function countLabel(slot, p = {}) {
 /** Shortest distance (in 16ths) between consecutive notes of one instrument, wrapping round the bar. */
 export function nearestGap(p, id) {
   const pos = [];
-  p[id].forEach((on, i) => on && pos.push(slotPos(p, i)));
+  for (const s of allSlots(p)) if (noteAt(p, id, s)) pos.push(slotPos(p, s));
   if (pos.length < 2) return 4;
   let min = barLength(p) - pos[pos.length - 1] + pos[0];
   for (let i = 1; i < pos.length; i++) min = Math.min(min, pos[i] - pos[i - 1]);
@@ -249,7 +316,7 @@ export function nearestGap(p, id) {
 }
 
 export function usedInstruments(g) {
-  return KIT.filter((k) => g.pattern[k.id].some(Boolean));
+  return KIT.filter((k) => rowHas(g.pattern, k.id));
 }
 
 export function isEmpty(g) {
@@ -431,7 +498,7 @@ const HANDS = KIT.filter((k) => !k.foot).map((k) => k.id);
 
 /** Drums used anywhere in a list of bars. */
 export function chartInstruments(bars) {
-  return KIT.filter((k) => bars.some((p) => p[k.id].some(Boolean)));
+  return KIT.filter((k) => bars.some((p) => rowHas(p, k.id)));
 }
 
 /** Repair a chart loaded from storage. */

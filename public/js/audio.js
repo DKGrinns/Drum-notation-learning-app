@@ -270,7 +270,7 @@ function click(t, accent, out, full) {
 
 const val = (v) => (typeof v === 'function' ? v() : v);
 
-const TICKS = 12; // scheduler ticks per beat: 16ths land every 3, triplet 8ths every 4
+const TICKS = 24; // scheduler ticks per beat: 16ths land every 6, triplet 8ths every 8, 32nds every 3
 
 // Keep the phone's screen on while something is playing.
 let wake = null;
@@ -385,11 +385,18 @@ class Transport {
     const within = tick - this.starts[beat];
     if (val(metronome) && within === 0) click(t, beat === 0, this.bus, fullClick);
     const p = getPattern(loop);
-    const per = isLongBeat(p, beat) ? 6 : isTrip(p, beat) ? 4 : 3; // ticks per slot in this beat
-    if (within % per) return;
+    const per = isLongBeat(p, beat) ? 12 : isTrip(p, beat) ? 8 : 6; // ticks per slot in this beat
+    if (within % per) {
+      // Halfway between two slots: the extra notes of a beat split in 32nds or sextuplets.
+      if (within % per === per / 2 && p.fine?.[beat] && val(playGroove)) {
+        const at = beat * 4 + Math.floor(within / per);
+        for (const id in p.x || {}) if (p.x[id][at]) playNote(id, p.x[id][at], t, this.bus);
+      }
+      return;
+    }
     const slot = beat * 4 + within / per;
     if (val(playGroove)) {
-      for (const id in p) if (Array.isArray(p[id]) && id !== 'trip' && id !== 'stick' && p[id][slot]) playNote(id, p[id][slot], t, this.bus);
+      for (const id in p) if (VOICES[id] && Array.isArray(p[id]) && p[id][slot]) playNote(id, p[id][slot], t, this.bus);
     }
     this.queue.push({ type: 'step', slot, loop, time: t });
   }
