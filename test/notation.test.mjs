@@ -74,7 +74,7 @@ test('one notehead is drawn for each note', () => {
 });
 
 test('notes run left to right in time, inside the staff', () => {
-  for (const spec of [{ snare: [...Array(16).keys()] }, { trip: [0, 1, 2, 3], snare: [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14] }, { meter: '6/8', snare: [0, 1, 2, 4, 5, 6] }, { meter: '5/4', snare: [0, 2, 4, 8, 12, 16, 18] }]) {
+  for (const spec of [{ snare: [...Array(16).keys()] }, { trip: [0, 1, 2, 3], snare: [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14] }, { meter: '6/8', snare: [0, 1, 2, 4, 5, 6] }, { meter: '5/4', snare: [0, 2, 4, 8, 12, 16, 18] }, { meter: '7/8', snare: [0, 2, 4, 6, 8, 9, 10] }]) {
     for (const layout of ['natural', 'grid']) {
       const { staff } = draw(spec, { layout });
       const p = G.makeGroove('', spec).pattern;
@@ -97,9 +97,17 @@ test('triplets, stickings and time signatures are labelled', () => {
   assert.deepEqual(texts(trip, 'tuplet'), ['3', '3']);
   const stick = draw({ snare: [0, 4, 8, 12], sticking: { R: [0, 8], L: [4, 12] } }).h;
   assert.deepEqual(texts(stick, 'sticking'), ['R', 'L', 'R', 'L']);
-  for (const [meter, top, bottom] of [['3/4', '3', '4'], ['5/4', '5', '4'], ['6/8', '6', '8'], ['12/8', '12', '8']]) {
+  for (const [meter, top, bottom] of [['3/4', '3', '4'], ['5/4', '5', '4'], ['6/8', '6', '8'], ['12/8', '12', '8'], ['7/8', '7', '8']]) {
     assert.deepEqual(texts(draw({ meter, snare: [0] }).h, 'timesig'), [top, bottom]);
   }
+});
+
+test('in 7/8 every 8th note gets the same room on the grid', () => {
+  const { h, staff } = draw({ meter: '7/8', snare: [0, 2, 4, 6, 8, 9, 10] }, { layout: 'grid', res: 2 });
+  const xs = [0, 2, 4, 6, 8, 9, 10].map((s) => staff.xOf(s));
+  const step = xs[1] - xs[0];
+  assert.ok(Math.abs(xs[5] - xs[4] - step) < 0.01 && Math.abs(xs[6] - xs[5] - step) < 0.01);
+  assert.deepEqual(texts(h, 'tuplet'), []); // three real 8ths, not a triplet
 });
 
 test('a chart wraps onto lines and labels its endings', () => {

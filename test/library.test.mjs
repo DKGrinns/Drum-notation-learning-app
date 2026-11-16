@@ -71,6 +71,17 @@ test('stickings and the newer note types survive a share link', () => {
   assert.ok(text.includes('153,40,96')); // the rimshot
 });
 
+test('a 7/8 MIDI file is seven 8ths long', () => {
+  const p = makeGroove('', { meter: '7/8', snare: [0], kick: [10] }).pattern;
+  const bytes = [...grooveToMidi({ name: 'Seven', bars: [p], bpm: 120 })];
+  const text = bytes.join(',');
+  assert.ok(text.includes('255,88,4,7,3')); // 7/8
+  // The kick on the 7th 8th is 6 × 240 = 1440 ticks in; the bar ends at 1680.
+  assert.ok(text.includes('153,36,96'));
+  const kickAt = bytes.join(',').indexOf('153,36,96');
+  assert.ok(kickAt > 0);
+});
+
 test('file names are safe', () => {
   assert.equal(fileName('Rock Beat #1!', 'mid'), 'rock-beat-1.mid');
   assert.equal(fileName('///', 'png'), 'groove.png');

@@ -24,6 +24,8 @@ export const METERS = {
   '3/4': { id: '3/4', beats: 3, top: 3, bottom: 4, name: 'Three-four' },
   '2/4': { id: '2/4', beats: 2, top: 2, bottom: 4, name: 'Two-four' },
   '5/4': { id: '5/4', beats: 5, top: 5, bottom: 4, name: 'Five-four' },
+  // Seven 8ths grouped 2 + 2 + 3: two ordinary beats, then one that is three 8ths long.
+  '7/8': { id: '7/8', beats: 3, top: 7, bottom: 8, odd: [2], name: 'Seven-eight' },
   '6/8': { id: '6/8', beats: 2, top: 6, bottom: 8, compound: true, name: 'Six-eight' },
   '12/8': { id: '12/8', beats: 4, top: 12, bottom: 8, compound: true, name: 'Twelve-eight' },
 };
@@ -82,6 +84,7 @@ export const PRESETS = [
   { name: 'Cross-stick ballad', level: 'Intermediate', spec: { hihat: E, cross: { snare: [4, 12] }, kick: [0, 6, 8] } },
   { name: 'Ride bell groove', level: 'Intermediate', spec: { ride: E, bell: { ride: Q }, snare: [4, 12], kick: [0, 8, 10] } },
   { name: '2/4 march', level: 'Beginner', spec: { meter: '2/4', hihat: [0, 2, 4, 6], snare: [4], kick: [0] } },
+  { name: '7/8 groove', level: 'Advanced', spec: { meter: '7/8', hihat: [0, 2, 4, 6, 8, 9, 10], snare: [4, 10], kick: [0, 8] } },
   { name: '5/4 groove', level: 'Advanced', spec: { meter: '5/4', hihat: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18], snare: [4, 16], kick: [0, 6, 12] } },
 ];
 
@@ -167,7 +170,7 @@ export function normalizeGroove(g) {
     }
   }
   if (!isCompound(pattern) && Array.isArray(g.pattern.trip) && g.pattern.trip.some(Boolean)) {
-    pattern.trip = Array.from({ length: beatsOf(pattern) }, (_, b) => (g.pattern.trip[b] ? 1 : 0));
+    pattern.trip = Array.from({ length: beatsOf(pattern) }, (_, b) => (g.pattern.trip[b] && !isLongBeat(pattern, b) ? 1 : 0));
     if (!pattern.trip.some(Boolean)) delete pattern.trip;
   }
   for (const k of KIT) for (let b = 0; b < beatsOf(pattern); b++) if (isTrip(pattern, b)) pattern[k.id][b * 4 + 3] = 0;
@@ -183,15 +186,35 @@ export function normalizeGroove(g) {
 // ---------- Rhythm helpers ----------
 
 /** A beat split in three: a triplet beat, or any beat of a compound meter. */
-export const isTrip = (p, beat) => isCompound(p) || !!p.trip?.[beat];
-/** A triplet beat that needs the "3" (not just a compound-meter beat). */
-export const isTuplet = (p, beat) => !isCompound(p) && !!p.trip?.[beat];
+/** A beat that is three 8ths long in a meter whose other beats are two (the last beat of 7/8). */
+export const isLongBeat = (p, beat) => !!meterOf(p).odd?.includes(beat);
+/** A beat split in three: a triplet, a compound-meter beat, or a long beat. */
+export const isTrip = (p, beat) => isCompound(p) || isLongBeat(p, beat) || !!p.trip?.[beat];
+/** A triplet beat that needs the "3" (not just a beat that is three 8ths long). */
+export const isTuplet = (p, beat) => !isCompound(p) && !isLongBeat(p, beat) && !!p.trip?.[beat];
+
+/** How long a beat lasts, in 16ths of an ordinary beat. */
+export const beatLen = (p, beat) => (isLongBeat(p, beat) ? 6 : 4);
+/** Where a beat starts in the bar, in 16ths. */
+export function beatStart(p, beat) {
+  let at = 0;
+  for (let b = 0; b < beat; b++) at += beatLen(p, b);
+  return at;
+}
+/** The length of the whole bar, in 16ths. */
+export const barLength = (p) => beatStart(p, beatsOf(p));
+/** The beat that a position (in 16ths) falls in. */
+export function beatAt(p, pos) {
+  let b = 0;
+  while (b < beatsOf(p) - 1 && pos >= beatStart(p, b + 1)) b++;
+  return b;
+}
 
 /** Where a slot falls in the bar, in 16ths of a beat (three-way beats land on thirds). */
 export function slotPos(p, slot) {
   const b = slot >> 2;
   const j = slot & 3;
-  return b * 4 + (isTrip(p, b) ? (j * 4) / 3 : j);
+  return beatStart(p, b) + (isLongBeat(p, b) ? j * 2 : isTrip(p, b) ? (j * 4) / 3 : j);
 }
 
 /** Slots that exist in this pattern's rhythm grid. */
@@ -205,6 +228,12 @@ export function validSlots(p) {
 export function countLabel(slot, p = {}) {
   const b = slot >> 2;
   const j = slot & 3;
+  if (meterOf(p).odd) {
+    // 7/8 is counted in 8ths: 1 2, 3 4, 5 6 7. A 16th in between is an "&".
+    const first = beatStart(p, b) / 2 + 1;
+    if (isLongBeat(p, b)) return String(first + j);
+    return `${first + (j >> 1)}${j % 2 ? ' &' : ''}`;
+  }
   const names = isCompound(p) ? ['', ' &', ' a'] : isTrip(p, b) ? ['', ' trip', ' let'] : ['', ' e', ' &', ' a'];
   return `${b + 1}${names[j]}`;
 }
@@ -214,7 +243,7 @@ export function nearestGap(p, id) {
   const pos = [];
   p[id].forEach((on, i) => on && pos.push(slotPos(p, i)));
   if (pos.length < 2) return 4;
-  let min = barSlots(p) - pos[pos.length - 1] + pos[0];
+  let min = barLength(p) - pos[pos.length - 1] + pos[0];
   for (let i = 1; i < pos.length; i++) min = Math.min(min, pos[i] - pos[i - 1]);
   return min;
 }

@@ -78,6 +78,17 @@ test('a repeat makes the last two bars the first and second endings', () => {
   assert.deepEqual(G.repeatForm(3), { order: [0, 1, 0, 2], endings: [1, 2] });
 });
 
+test('7/8 is two ordinary beats and one that is three 8ths long', () => {
+  const p = G.makeGroove('', { meter: '7/8', hihat: [0, 2, 4, 6, 8, 9, 10] }).pattern;
+  assert.equal(G.barLength(p), 14); // seven 8ths = fourteen 16ths
+  assert.deepEqual([0, 2, 4, 6, 8, 9, 10].map((s) => G.slotPos(p, s)), [0, 2, 4, 6, 8, 10, 12]); // every 8th is the same length
+  assert.deepEqual([0, 2, 4, 6, 8, 9, 10].map((s) => G.countLabel(s, p)), ['1', '2', '3', '4', '5', '6', '7']);
+  assert.equal(G.countLabel(1, p), '1 &');
+  assert.deepEqual([0, 3.9, 4, 8, 13].map((pos) => G.beatAt(p, pos)), [0, 0, 1, 2, 2]);
+  assert.equal(G.barLength(G.makeGroove('', {}).pattern), 16);
+  assert.equal(G.barLength(G.makeGroove('', { meter: '6/8' }).pattern), 8);
+});
+
 test('a chart without a repeat plays its bars in order', () => {
   assert.deepEqual(G.chartOrder(G.randomChart(0)), [0, 1, 2, 3]);
   assert.equal(G.normalizeChart({ bars: [G.emptyPattern()], order: [0, 5] }).order, undefined);

@@ -1,7 +1,7 @@
 // Saved grooves: a small library, share links, and MIDI files.
 // Nothing here touches the page, so it can be tested on its own.
 import { KIT } from './kit.js';
-import { NOTE, meterOf, slotPos, normalizeChart, clonePattern, repeatForm } from './grooves.js';
+import { NOTE, meterOf, slotPos, barLength, normalizeChart, clonePattern, repeatForm } from './grooves.js';
 import { store } from './store.js';
 
 const MAX_SAVED = 100;
@@ -114,7 +114,7 @@ export function grooveToMidi({ name = '', bars: written, bpm = 90, repeat }, loo
   const m = meterOf(bars[0]);
   // In 6/8 and 12/8 the beat is a dotted quarter.
   const beat = m.compound ? QUARTER * 1.5 : QUARTER;
-  const barTicks = m.beats * beat;
+  const barTicks = (barLength(bars[0]) * beat) / 4;
   const notes = [];
   for (let n = 0; n < loops * bars.length; n++) {
     const p = bars[n % bars.length];

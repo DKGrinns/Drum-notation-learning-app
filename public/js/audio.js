@@ -1,6 +1,6 @@
 // Web Audio drum synth + sample-accurate transport.
 // All drum sounds are synthesized, so there are no audio files to load.
-import { beatsOf, isTrip, NOTE } from './grooves.js';
+import { beatsOf, isTrip, isLongBeat, beatStart, meterOf, NOTE } from './grooves.js';
 import { store } from './store.js';
 
 // Separate volumes (0–1) for the click and for the drum sounds.
@@ -310,14 +310,20 @@ class Transport {
     const c = getCtx();
     // fullClick ignores the click volume (calibration needs the click to be heard).
     this.opts = { getBpm, getPattern, loops, playGroove, metronome, onEvent, countInBeats, fullClick };
-    this.beats = beatsOf(getPattern(0)); // beats per bar (the meter stays put while playing)
+    const first = getPattern(0);
+    this.beats = beatsOf(first); // beats per bar (the meter stays put while playing)
+    // Where each beat starts, in ticks. Beats are usually equal; the last beat of 7/8 is half as long again.
+    this.starts = Array.from({ length: this.beats + 1 }, (_, b) => (beatStart(first, b) * TICKS) / 4);
+    this.barTicks = this.starts[this.beats];
+    // An uneven bar is counted in as one whole bar, so you hear its shape.
+    this.countTicks = countInBeats && meterOf(first).odd ? this.barTicks : countInBeats * TICKS;
     this.bus = c.createGain();
     this.bus.connect(master);
-    this.step = -countInBeats * TICKS;
+    this.step = -this.countTicks;
     this.nextTime = c.currentTime + 0.12;
     this.sixteenth = 60 / getBpm() / 4;
     // Time of beat 1 of the first loop (valid while tempo is constant).
-    this.startTime = this.nextTime + countInBeats * 4 * this.sixteenth;
+    this.startTime = this.nextTime + (this.countTicks / TICKS) * 4 * this.sixteenth;
     this.queue = [];
     this.done = false;
     this.running = true;
@@ -347,7 +353,7 @@ class Transport {
     const c = getCtx();
     const { getBpm, loops } = this.opts;
     while (this.running && !this.done && this.nextTime < c.currentTime + 0.12) {
-      if (this.step >= loops * this.beats * TICKS) {
+      if (this.step >= loops * this.barTicks) {
         this.queue.push({ type: 'end', time: this.nextTime });
         this.done = true;
         break;
@@ -361,22 +367,25 @@ class Transport {
 
   _schedule(step, t) {
     const { getPattern, playGroove, metronome, countInBeats, fullClick } = this.opts;
+    const uneven = this.barTicks !== this.beats * TICKS;
     if (step < 0) {
-      const pos = step + countInBeats * TICKS;
-      if (pos % TICKS === 0) {
-        const n = pos / TICKS + 1;
-        click(t, (n - 1) % this.beats === 0, this.bus, fullClick);
-        this.queue.push({ type: 'count', n, time: t });
+      const pos = step + this.countTicks;
+      // The beat that starts here, if one does.
+      const b = uneven ? this.starts.lastIndexOf(pos, this.beats - 1) : pos % TICKS === 0 ? pos / TICKS : -1;
+      if (b >= 0) {
+        click(t, b % this.beats === 0, this.bus, fullClick);
+        this.queue.push({ type: 'count', n: b + 1, time: t });
       }
       return;
     }
-    const tick = step % (this.beats * TICKS);
-    const loop = Math.floor(step / (this.beats * TICKS));
-    const beat = Math.floor(tick / TICKS);
-    const within = tick % TICKS;
+    const tick = step % this.barTicks;
+    const loop = Math.floor(step / this.barTicks);
+    let beat = this.beats - 1;
+    while (this.starts[beat] > tick) beat--;
+    const within = tick - this.starts[beat];
     if (val(metronome) && within === 0) click(t, beat === 0, this.bus, fullClick);
     const p = getPattern(loop);
-    const per = isTrip(p, beat) ? 4 : 3; // ticks per slot in this beat
+    const per = isLongBeat(p, beat) ? 6 : isTrip(p, beat) ? 4 : 3; // ticks per slot in this beat
     if (within % per) return;
     const slot = beat * 4 + within / per;
     if (val(playGroove)) {

@@ -9,7 +9,7 @@
 // checked too. That is reported next to the timing score, not folded into it.
 import { h } from './ui.js';
 import { KIT } from './kit.js';
-import { barSlots, slotPos, nearestGap, NOTE, isHit } from './grooves.js';
+import { barSlots, barLength, slotPos, nearestGap, NOTE, isHit } from './grooves.js';
 import { audioTimeAt } from './audio.js';
 import { store } from './store.js';
 import { midiOffset, onMidiHit } from './midi.js';
@@ -44,6 +44,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
   const seq = bars || [pattern];
   const ord = (bars && order) || seq.map((_, i) => i);
   const len = barSlots(seq[0]);
+  const barLen = barLength(seq[0]); // how long a bar lasts, in 16ths
   const expected = [];
   for (let n = 0; n < loops * ord.length; n++) {
     const bar = ord[n % ord.length];
@@ -51,7 +52,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     for (let slot = 0; slot < len; slot++) {
       for (const id of ids) {
         if (isHit(p[id][slot])) {
-          expected.push({ id, slot, bar, value: p[id][slot], time: startTime + (n * len + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
+          expected.push({ id, slot, bar, value: p[id][slot], time: startTime + (n * barLen + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
         }
       }
     }

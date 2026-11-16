@@ -75,6 +75,14 @@ test('drags, rolls and ties: extra strokes are part of the note, and a tie is no
   assert.deepEqual(r.expression.rolls, { ok: 1, total: 1 });
 });
 
+test('in 7/8 the second time through starts seven 8ths after the first', () => {
+  const { pattern } = makeGroove('', { meter: '7/8', snare: [0, 8, 10] });
+  const s = session({ pattern, ids: ['snare'], loops: 2 });
+  const eighth = SIX * 2;
+  for (const n of [0, 4, 6, 7, 11, 13]) assert.equal(s.hit('snare', (1 + n * eighth) * 1000), 'good'); // 8ths 1, 5, 7 of each bar
+  assert.equal(s.result().score, 100);
+});
+
 test('a microphone hit plays whatever is due, on any drum', () => {
   const { pattern } = makeGroove('', { hihat: E, snare: [4, 12], kick: [0, 8, 11] });
   const s = session({ pattern, ids: ['hihat', 'snare', 'kick'] });

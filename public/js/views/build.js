@@ -5,7 +5,7 @@ import { download, shareGroove, groovePng } from '../export.js';
 import { KIT } from '../kit.js';
 import {
   PRESETS, METERS, NOTE, NOTE_TYPES, noteTypeFits, makeGroove, clonePattern, normalizeGroove, normalizeChart, emptyPattern,
-  subdivision, subdivisionLabel, isTrip, isCompound, countLabel, beatsOf, meterOf, repeatForm,
+  subdivision, subdivisionLabel, isTrip, isCompound, countLabel, beatsOf, meterOf, repeatForm, isLongBeat, beatLen,
 } from '../grooves.js';
 import { renderPattern, renderChart, LEFT, RIGHT, BEAT_GAP } from '../notation.js';
 import { transport, playInstrument, playNote } from '../audio.js';
@@ -237,6 +237,7 @@ function renderAll() {
     class: `beat-toggle${isTrip(p, b) ? ' on' : ''}`,
     'aria-pressed': isTrip(p, b),
     'aria-label': `Triplets on beat ${b + 1}`,
+    hidden: isLongBeat(p, b), // already three 8ths long
     onClick: () => toggleTrip(b),
   }, String(b + 1))));
   els.longSwitch.checked = !!p.long;
@@ -263,6 +264,15 @@ function beatCols(b) {
   return out;
 }
 
+/** The columns of one beat, labelled the way this meter is counted. */
+function beatColsFor(b) {
+  const p = S.groove.pattern;
+  const cols = beatCols(b);
+  // 7/8 is counted in 8ths (1 to 7), with "&" for a 16th in between.
+  if (meterOf(p).odd) for (const c of cols) c.label = countLabel(c.slot, p).split(' ').pop();
+  return cols;
+}
+
 function cellLabel(k, slot) {
   const v = S.groove.pattern[k.id][slot];
   const what = v > 1 ? `${TYPE_NAME[v]} on ${k.name}` : k.name;
@@ -273,13 +283,20 @@ function renderGrid() {
   const { grid } = els;
   const p = S.groove.pattern;
   const beats = beatsOf(p);
-  const beat = `repeat(${UNITS}, minmax(0, 1fr))`;
-  grid.style.gridTemplateColumns = `${LEFT}px ${Array(beats).fill(beat).join(` ${BEAT_GAP}px `)} ${RIGHT}px`;
+  // Grid columns per beat: more for a beat that lasts longer, so every 8th is the same width.
+  const units = (b) => (UNITS * beatLen(p, b)) / 4;
+  const firstCol = (b) => {
+    let col = 2;
+    for (let i = 0; i < b; i++) col += units(i) + 1;
+    return col;
+  };
+  grid.style.gridTemplateColumns = `${LEFT}px ${Array.from({ length: beats }, (_, b) => `repeat(${units(b)}, minmax(0, 1fr))`).join(` ${BEAT_GAP}px `)} ${RIGHT}px`;
   grid.replaceChildren();
   const place = (rowN, b, i, n) => {
-    const span = UNITS / n;
-    return { gridRow: String(rowN), gridColumn: `${2 + b * (UNITS + 1) + i * span} / span ${span}` };
+    const span = units(b) / n;
+    return { gridRow: String(rowN), gridColumn: `${firstCol(b) + i * span} / span ${span}` };
   };
+  const beatCols = beatColsFor; // eslint-disable-line no-shadow
   for (let b = 0; b < beats; b++) {
     const cols = beatCols(b);
     cols.forEach((c, i) => grid.append(h('div', {
@@ -426,6 +443,20 @@ function setMeter(m) {
 }
 
 function convertMeter(old, m) {
+  if (METERS[m].odd || meterOf(old).odd) {
+    // 7/8 has a shape of its own: keep the ordinary beats that both bars have, and drop the rest.
+    const to = emptyPattern(m);
+    let dropped = 0;
+    for (const k of KIT) {
+      old[k.id].forEach((v, s) => {
+        if (!v) return;
+        const b = s >> 2;
+        if (b < Math.min(beatsOf(old), METERS[m].beats) && !isTrip(old, b) && !isLongBeat(to, b)) to[k.id][s] = v;
+        else dropped++;
+      });
+    }
+    return { next: to, lost: dropped };
+  }
   const next = emptyPattern(m);
   const toCompound = !!METERS[m].compound;
   const fromCompound = isCompound(old);
@@ -517,7 +548,7 @@ function start() {
       if (ev.type === 'interrupt') return stop();
       if (ev.type !== 'step') return;
       // A new meter needs a fresh start of the transport.
-      if (beatsOf(S.groove.pattern) !== beatsOf(startPattern)) {
+      if (meterOf(S.groove.pattern).id !== meterOf(startPattern).id) {
         stop();
         start();
         return;

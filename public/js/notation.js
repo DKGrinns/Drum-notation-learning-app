@@ -5,7 +5,10 @@
 // Beats can be straight (16th grid) or triplets. Notes are spaced by length, or
 // evenly in 'grid' layout so the staff lines up with the Build step grid.
 import { KIT } from './kit.js';
-import { meterOf, beatsOf, barSlots, isTrip as tripOf, isTuplet, isCompound, slotPos as posOf, NOTE } from './grooves.js';
+import {
+  meterOf, beatsOf, barSlots, isTrip as tripOf, isTuplet, isCompound, slotPos as posOf, NOTE,
+  isLongBeat, barLength, beatStart, beatLen, beatAt,
+} from './grooves.js';
 
 /** Horizontal gutters shared with the step grid so columns line up exactly. */
 export const LEFT = 56;
@@ -241,7 +244,7 @@ function analyzeVoice(pattern, kit) {
 
   // Long notes: the longest standard value that fits the silence after the note.
   const cover = Array(beats).fill(0); // 16ths at the start of each beat still sounding from an earlier note
-  if (pattern.long && !compound) {
+  if (pattern.long && !compound && !meterOf(pattern).odd) {
     ons.forEach((o, i) => {
       if (tripOf(pattern, o.b)) return;
       const p = o.pos;
@@ -263,7 +266,8 @@ function analyzeVoice(pattern, kit) {
     const units = trip ? 3 : 4;
     const start = cover[b];
     const notes = ons.filter((o) => o.b === b);
-    const beat = { b, trip, tuplet: isTuplet(pattern, b), compound, covered: start >= 4, notes, rest: null };
+    // A beat that is three real 8ths long (all of 6/8, the last beat of 7/8) is written without a "3".
+    const beat = { b, trip, tuplet: isTuplet(pattern, b), compound: compound || isLongBeat(pattern, b), covered: start >= 4, notes, rest: null };
     if (beat.covered) return beat;
     if (!notes.length) {
       if (start === 0) beat.rest = { pos: b * 4, units, whole: true };
@@ -281,7 +285,7 @@ function analyzeVoice(pattern, kit) {
         o.stem = o.long < 16;
       } else if (trip) {
         o.beams = dur === 1 ? 1 : 0;
-        o.dot = compound && dur === 3; // a whole compound beat is a dotted quarter
+        o.dot = beat.compound && dur === 3; // a whole compound beat is a dotted quarter
       } else {
         o.beams = dur === 1 ? 2 : dur === 4 ? 0 : 1;
         o.dot = dur === 3;
@@ -306,19 +310,22 @@ export const BEAT_GAP = 8;
  */
 function gridLayout(pattern, width, res) {
   const beats = beatsOf(pattern);
-  const beatW = (width - LEFT - RIGHT - (beats - 1) * BEAT_GAP) / beats;
+  // Beats share the width by how long they last (the long beat of 7/8 is half as wide again).
+  const unit = (width - LEFT - RIGHT - (beats - 1) * BEAT_GAP) / barLength(pattern); // px per 16th
+  const x0 = (b) => LEFT + beatStart(pattern, b) * unit + b * BEAT_GAP;
+  const wOf = (b) => beatLen(pattern, b) * unit;
   const cols = (b) => (tripOf(pattern, b) ? 3 : 4 / res);
   const cell = (slot) => {
     const b = slot >> 2;
     const n = cols(b);
     const c = tripOf(pattern, b) ? slot & 3 : Math.floor((slot & 3) / res);
-    return { x: LEFT + b * (beatW + BEAT_GAP) + ((c + 0.5) * beatW) / n, w: beatW / n };
+    return { x: x0(b) + ((c + 0.5) * wOf(b)) / n, w: wOf(b) / n };
   };
   return {
     xOf: (slot) => cell(slot).x,
     xAt: (pos) => {
-      const b = Math.min(beats - 1, Math.floor(pos / 4));
-      return LEFT + b * (beatW + BEAT_GAP) + ((pos - b * 4) / 4) * beatW + beatW / cols(b) / 2;
+      const b = beatAt(pattern, pos);
+      return x0(b) + ((pos - beatStart(pattern, b)) / beatLen(pattern, b)) * wOf(b) + wOf(b) / cols(b) / 2;
     },
     widthOf: (slot) => cell(slot).w,
   };
@@ -329,7 +336,7 @@ function gridLayout(pattern, width, res) {
  * how long it lasts (a little less than in proportion), plus a small gap between beats.
  */
 function naturalLayout(pattern, width, s, voices, x0 = LEFT, x1 = width - RIGHT) {
-  const len = barSlots(pattern);
+  const len = barLength(pattern);
   const set = new Set();
   const extra = new Map(); // column → room for a flag or dot that sticks out to the right
   const before = new Map(); // column → room for a grace note on its left
@@ -351,7 +358,7 @@ function naturalLayout(pattern, width, s, voices, x0 = LEFT, x1 = width - RIGHT)
   const cols = [...set].sort((a, b) => a - b);
   const weights = cols.map((p, i) => {
     const next = cols[i + 1] ?? len;
-    const beatGap = Math.floor((next - 1e-6) / 4) > Math.floor(p / 4) ? 0.4 : 0;
+    const beatGap = beatAt(pattern, next - 1e-6) > beatAt(pattern, p) ? 0.4 : 0;
     return Math.max(1, next - p) ** 0.62 + beatGap + (next - p < 4 ? extra.get(p) || 0 : 0) + (before.get(cols[i + 1]) || 0);
   });
   const lead = s * (1.05 + (before.has(cols[0]) ? GRACE_DX * 0.9 + (before.get(cols[0]) > 1 ? DRAG_DX : 0) : 0));
