@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { tapSession } from '../public/js/tap.js';
-import { DEFAULT_MAP, noteName } from '../public/js/midi.js';
+import { DEFAULT_MAP, DEFAULT_FLOOR, noteName, tooSoft } from '../public/js/midi.js';
 
 const TYPE = { 1: 'normal', 2: 'accent', 3: 'ghost', 4: 'open', 5: 'flam', 6: 'cross-stick', 7: 'bell', 8: 'rimshot', 9: 'drag', 10: 'roll', 11: 'tie' };
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
@@ -22,6 +22,8 @@ export function replayRun(run) {
     toAudioTime: (t) => t, // recorded times are already audio times, corrected for the offsets
   });
   for (const tap of run.taps) {
+    // Older recordings still hold the blips the app now ignores as too soft to be a stroke.
+    if (tap.src === 'midi' && tap.vel && tooSoft(tap.id, tap.vel, DEFAULT_FLOOR)) continue;
     if (tap.id === 'any') session.hitAny(tap.t, tap.src); // heard by the microphone
     else session.hit(tap.id, tap.t, tap.src, { velocity: tap.vel, open: tap.open, note: tap.note });
   }
@@ -45,6 +47,7 @@ function describeRun(run, i) {
     if (parts.length) console.log(`         strength: ${parts.join(', ')}`);
   }
   if (result.expression) console.log('  from the kit:', JSON.stringify(result.expression));
+  for (const tip of result.tips) console.log(`  → ${tip}`);
 }
 
 function describeEvents(events) {

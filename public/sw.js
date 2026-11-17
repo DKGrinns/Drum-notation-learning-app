@@ -1,6 +1,6 @@
 // Offline support. Network first, so you always get the newest version when
 // online; the cached copy is used when the network isn't there.
-const CACHE = 'drum-reader-v17';
+const CACHE = 'drum-reader-v18';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'css/app.css', 'css/themes.css',
   'js/main.js', 'js/audio.js', 'js/backup.js', 'js/calibrate.js', 'js/curriculum.js', 'js/diag.js', 'js/export.js', 'js/grooves.js', 'js/kit.js', 'js/kitsetup.js', 'js/library.js', 'js/mic.js', 'js/mic-worklet.js', 'js/micsetup.js', 'js/midi.js',

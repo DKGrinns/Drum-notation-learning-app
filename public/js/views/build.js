@@ -7,7 +7,7 @@ import {
   PRESETS, METERS, NOTE, NOTE_TYPES, noteTypeFits, makeGroove, clonePattern, normalizeGroove, normalizeChart, emptyPattern,
   subdivision, subdivisionLabel, isTrip, isCompound, countLabel, beatsOf, meterOf, repeatForm, isLongBeat, beatLen, isFine, noteAt, setNote,
 } from '../grooves.js';
-import { renderPattern, renderChart, LEFT, RIGHT, BEAT_GAP } from '../notation.js';
+import { renderPattern, renderChart, LEFT, RIGHT, BEAT_GAP, gridWeight, gridMinWidth } from '../notation.js';
 import { transport, playInstrument, playNote } from '../audio.js';
 import { store } from '../store.js';
 
@@ -16,7 +16,7 @@ export const title = 'Build';
 const STRAIGHT = ['', 'e', '&', 'a'];
 const TRIPLET = ['', 'trip', 'let'];
 const COMPOUND = ['', '&', 'a'];
-const UNITS = 24; // grid columns per beat: 32nds span 3, 16ths 6, 8ths 12, triplets 8, sextuplets 4
+const UNITS = 24; // grid columns per beat: 16ths span 6, 8ths 12, triplets 8 (a beat of 32nds is twice as wide: 48 columns, each 32nd spanning 6)
 const TYPE_NAME = Object.fromEntries(NOTE_TYPES.map((t) => [t.value, t.name]));
 const MAX_BARS = 16;
 
@@ -40,6 +40,58 @@ export function loadMyChart() {
   const bars = loadMyBars();
   if (bars.length < 2) return null;
   return { name: 'My groove', bars, ...(bars.length >= 3 && store.get('myRepeat', false) ? repeatForm(bars.length) : {}) };
+}
+
+/** The kinds of note with a button of their own; the others are behind "More". */
+const COMMON_NOTES = [NOTE.HIT, NOTE.ACCENT, NOTE.GHOST, NOTE.OPEN, NOTE.FLAM];
+const MORE = -1;
+const NOTE_HELP = {
+  hit: 'An ordinary note',
+  accent: 'Louder than the notes around it',
+  ghost: 'Very soft, on the snare or toms',
+  open: 'Hi-hat with your foot lifted',
+  flam: 'Two strokes almost together',
+  cross: 'Cross-stick: the stick laid across the snare',
+  bell: 'The bell of the ride cymbal',
+  rim: 'Rimshot: head and rim together',
+  drag: 'Two quick soft strokes, then the note',
+  roll: 'A buzz held for the whole note',
+  tie: 'Held over from the note before, not struck',
+};
+
+/** Choose any kind of note. onCancel runs if the sheet is closed without choosing. */
+function openNoteTypes(onPick, onCancel) {
+  sheet({
+    title: 'Kind of note',
+    items: NOTE_TYPES.map((t) => ({ label: t.label, detail: NOTE_HELP[t.id], checked: t.value === S.brush, onClick: () => onPick(t.value) })),
+  });
+  onCancel?.(); // put the buttons back as they were; a choice redraws them again
+}
+
+function openMeters() {
+  const detail = (m) => (m.group ? `${m.name}: ${m.top} 8th notes, counted ${m.group}`
+    : m.compound ? `${m.name}: ${m.beats} beats of three 8ths`
+    : `${m.name}: ${m.beats} beats`);
+  sheet({
+    title: 'Time signature',
+    items: Object.values(METERS).map((m) => ({ label: m.id, detail: detail(m), checked: m.id === meterOf(S.groove.pattern).id, onClick: () => setMeter(m.id) })),
+  });
+}
+
+function openHelp() {
+  const tips = [
+    ['Add a note', 'Tap a square. Tap it again to take the note away.'],
+    ['Change the kind of note', 'Pick a kind above the settings (Accent, Ghost, More…), then tap a note to change it. Tap it again to change it back.'],
+    ['Hear a drum', 'Tap its name at the left of the grid.'],
+    ['Stickings', 'The Sticking row writes R or L under a note.'],
+    ['More bars', 'Press + next to the bar numbers. The new bar starts as a copy of the one you’re on. You can have up to 16.'],
+    ['Repeats', 'With three or more bars you can turn on a repeat with two endings: the last two bars become the endings.'],
+    ['Play it', 'Your bars play in order here, and show up in the Play tab as “My groove”.'],
+  ];
+  modal({
+    title: 'How to write a groove',
+    content: h('div', { class: 'list help-list' }, tips.map(([t, d]) => h('div', { class: 'row' }, h('span', { class: 'row-main' }, h('span', null, t), h('span', { class: 'row-sub' }, d))))),
+  });
 }
 
 export function mount(root, nav) {
@@ -69,21 +121,36 @@ export function mount(root, nav) {
   const staffHost = h('div', { class: 'staff-host' });
   const barTabs = h('div', { class: 'bar-tabs', role: 'group', 'aria-label': 'Bars' });
   const grid = h('div', { class: 'grid', role: 'grid', 'aria-label': 'Step grid' });
+  const wide = h('div', { class: 'build-wide' }, staffHost, grid);
   const playBtn = h('button', { type: 'button', class: 'play-btn', onClick: togglePlay });
   const bpmVal = h('span', { class: 'tempo-val' }, S.bpm);
   const resSeg = segmented(
-    [{ value: 2, label: '8th notes' }, { value: 1, label: '16th notes' }],
+    [{ value: 2, label: '8ths' }, { value: 1, label: '16ths' }],
     S.res,
     setRes,
     'Grid resolution',
   );
-  const brushSeg = segmented(NOTE_TYPES.map((t) => ({ value: t.value, label: t.label })), S.brush, (v) => {
+  // The kind of note to write: the everyday ones as buttons, the rest behind "More".
+  const brushHost = h('div', { class: 'brush-host' });
+  const setBrush = (v) => {
     S.brush = v;
     const t = NOTE_TYPES.find((x) => x.value === v);
     if (t.on) toast(`${t.label}: tap a note on ${t.where}`);
-  }, 'Note type');
-  brushSeg.classList.add('brush');
-  const meterSeg = segmented(Object.keys(METERS).map((m) => ({ value: m, label: m })), meterOf(S.groove.pattern).id, setMeter, 'Time signature');
+    drawBrush();
+  };
+  const drawBrush = () => {
+    const extra = NOTE_TYPES.find((t) => t.value === S.brush && !COMMON_NOTES.includes(t.value));
+    const options = [
+      ...NOTE_TYPES.filter((t) => COMMON_NOTES.includes(t.value)).map((t) => ({ value: t.value, label: t.label })),
+      { value: extra ? extra.value : MORE, label: extra ? `${extra.label} ▾` : 'More ▾' },
+    ];
+    const seg = segmented(options, S.brush, (v) => (v === MORE ? openNoteTypes(setBrush, drawBrush) : setBrush(v)), 'Note type');
+    // Pressing the last button again (already showing an extra kind) reopens the list.
+    seg.lastChild.addEventListener('click', () => extra && openNoteTypes(setBrush, drawBrush));
+    brushHost.replaceChildren(seg);
+  };
+  drawBrush();
+  const meterVal = h('span', { class: 'row-value' });
   const beatToggles = h('div', { class: 'beat-toggles', role: 'group', 'aria-label': 'Triplet beats' });
   const tripRow = row(['Triplets', h('span', { class: 'row-sub' }, 'Three per beat')], beatToggles);
   const longSwitch = toggle(!!S.groove.pattern.long, setLong, 'Long notes');
@@ -106,43 +173,46 @@ export function mount(root, nav) {
   const repeatRow = row(['Repeat with two endings', h('span', { class: 'row-sub' }, 'The last two bars become the 1st and 2nd endings')], repeatSwitch);
   const rowBtn = (label, sub, onClick, right) => h('button', { type: 'button', class: 'row row-btn', onClick },
     h('span', { class: 'row-main' }, h('span', null, label), h('span', { class: 'row-sub' }, sub)), right, svgIcon(ICONS.chevron, 'icon chevron'));
+  const resRow = row(['Grid', h('span', { class: 'row-sub' }, 'The smallest note a square stands for')], resSeg);
 
   root.append(
     h('section', { class: 'card score' },
       h('div', { class: 'card-head' }, name, sub),
       barTabs,
-      staffHost,
-      grid),
+      h('div', { class: 'build-scroll' }, wide)),
     h('div', { class: 'transport' },
       playBtn,
       h('div', { class: 'tempo' },
         h('div', { class: 'tempo-read' }, bpmVal, h('span', { class: 'tempo-unit' }, 'BPM')),
         bpmStepper)),
-    h('div', { class: 'section-label' }, 'Write'),
-    brushSeg,
-    resSeg,
-    h('div', { class: 'section-label' }, 'Time signature'),
-    meterSeg,
+    h('div', { class: 'section-label' }, 'Kind of note'),
+    brushHost,
+    h('div', { class: 'section-label' }, 'Rhythm'),
     h('div', { class: 'list' },
+      rowBtn('Time signature', 'Beats in a bar', openMeters, meterVal),
+      resRow,
       tripRow,
       fineRow,
-      row(['Long notes', h('span', { class: 'row-sub' }, 'Write halves and dotted quarters')], longSwitch),
+      row(['Long notes', h('span', { class: 'row-sub' }, 'Write halves and dotted quarters')], longSwitch)),
+    h('div', { class: 'section-label' }, 'Bars and playback'),
+    h('div', { class: 'list' },
       repeatRow,
-      row('Metronome', toggle(S.click, (v) => {
+      rowBtn('See the whole chart', 'Every bar, written out together', openWhole),
+      row(['Metronome', h('span', { class: 'row-sub' }, 'A click on each beat while it plays')], toggle(S.click, (v) => {
         S.click = v;
         store.set('build.click', v);
       }, 'Metronome'))),
     h('div', { class: 'section-label' }, 'Keep and share'),
     h('div', { class: 'list' },
-      rowBtn('See the whole chart', 'Every bar, written out together', openWhole),
       rowBtn('Save this groove', 'Keep it in your saved grooves', saveCurrent),
       rowBtn('Saved grooves', 'Open one you saved earlier', openLibrary, savedCount),
       rowBtn('Share or export', 'A link, a MIDI file or a picture', openShare)),
-    h('p', { class: 'footnote' },
-      'Tap a square to add a note — the staff writes it for you. Pick another kind of note above (Cross is a cross-stick, Bell the ride’s bell, Rim a rimshot; a Tie is held, not played), then tap a note to change it. The Sticking row writes R or L under a note. Tap an instrument name to hear it. Press + to add a bar (it starts as a copy of the one you’re on), up to 16; your bars play in order and show up in Play as “My groove”. With three or more bars you can turn on a repeat with two endings.'),
+    h('div', { class: 'list' },
+      rowBtn('How to write a groove', 'Notes, bars, repeats and stickings', openHelp)),
+    h('p', { class: 'footnote' }, 'Tap a square to add a note, and the staff writes it for you. Your bars show up in Play as “My groove”.'),
   );
 
-  els = { name, sub, staffHost, barTabs, grid, playBtn, resSeg, meterSeg, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount, repeatSwitch, repeatRow, fineToggles };
+  els = { name, sub, staffHost, barTabs, grid, wide, playBtn, resSeg, resRow, meterVal, beatToggles, tripRow, longSwitch, bpmVal, bpmStepper, savedCount, repeatSwitch, repeatRow, fineToggles };
   updatePlayBtn();
   updateSavedCount();
   renderAll();
@@ -230,11 +300,11 @@ function renderAll() {
   const p = S.groove.pattern;
   els.name.textContent = S.groove.name;
   els.sub.textContent = subText();
-  els.meterSeg.set(meterOf(p).id);
+  els.meterVal.textContent = meterOf(p).id;
   renderBars();
   // Triplet toggles: one per beat; compound meters are already three per beat.
   els.tripRow.hidden = isCompound(p);
-  els.resSeg.hidden = isCompound(p);
+  els.resRow.hidden = isCompound(p);
   els.beatToggles.replaceChildren(...Array.from({ length: beatsOf(p) }, (_, b) => h('button', {
     type: 'button',
     class: `beat-toggle${isTrip(p, b) ? ' on' : ''}`,
@@ -303,7 +373,10 @@ function renderGrid() {
   const p = S.groove.pattern;
   const beats = beatsOf(p);
   // Grid columns per beat: more for a beat that lasts longer, so every 8th is the same width.
-  const units = (b) => (UNITS * beatLen(p, b)) / 4;
+  const units = (b) => (UNITS * gridWeight(p, b)) / 4;
+  // A beat of 32nds needs room: on a narrow screen the staff and grid scroll sideways together.
+  const min = gridMinWidth(p);
+  els.wide.style.minWidth = min ? `${min}px` : '';
   const firstCol = (b) => {
     let col = 2;
     for (let i = 0; i < b; i++) col += units(i) + 1;

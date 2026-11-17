@@ -307,15 +307,37 @@ function analyzeVoice(pattern, kit) {
 export const BEAT_GAP = 8;
 
 /**
- * Grid layout: four equal beats with a gap between them, each split into evenly
- * spaced columns, so the staff lines up with the step grid below it.
+ * How much of the grid's width a beat takes, in 16ths. A beat split into 32nds
+ * (or a sextuplet) gets twice the room, so its noteheads don't run into each other.
+ */
+export const gridWeight = (pattern, b) => beatLen(pattern, b) * (isFine(pattern, b) ? 2 : 1);
+/** The narrowest (px) one column of the grid can be before its notes touch. */
+const MIN_COL = 15;
+/**
+ * The least width (px) the grid layout needs for this bar, or 0 if any width will
+ * do. Only a bar with a finer beat asks for room; Build scrolls sideways if it must.
+ */
+export function gridMinWidth(pattern) {
+  const beats = beatsOf(pattern);
+  if (!Array.from({ length: beats }, (_, b) => isFine(pattern, b)).some(Boolean)) return 0;
+  let total = 0;
+  for (let b = 0; b < beats; b++) total += gridWeight(pattern, b);
+  return LEFT + RIGHT + (beats - 1) * BEAT_GAP + total * MIN_COL;
+}
+
+/**
+ * Grid layout: the beats side by side with a gap between them, each split into
+ * evenly spaced columns, so the staff lines up with the step grid below it.
  */
 function gridLayout(pattern, width, res) {
   const beats = beatsOf(pattern);
-  // Beats share the width by how long they last (the long beat of 7/8 is half as wide again).
-  const unit = (width - LEFT - RIGHT - (beats - 1) * BEAT_GAP) / barLength(pattern); // px per 16th
-  const x0 = (b) => LEFT + beatStart(pattern, b) * unit + b * BEAT_GAP;
-  const wOf = (b) => beatLen(pattern, b) * unit;
+  // Beats share the width by how long they last (the long beat of 7/8 is half as wide
+  // again), and a beat of 32nds counts double.
+  const before = [0];
+  for (let b = 0; b < beats; b++) before.push(before[b] + gridWeight(pattern, b));
+  const unit = (width - LEFT - RIGHT - (beats - 1) * BEAT_GAP) / before[beats]; // px per 16th of an ordinary beat
+  const x0 = (b) => LEFT + before[b] * unit + b * BEAT_GAP;
+  const wOf = (b) => gridWeight(pattern, b) * unit;
   const cols = (b) => (isFine(pattern, b) ? (tripOf(pattern, b) ? 6 : 8) : tripOf(pattern, b) ? 3 : 4 / res);
   const cell = (slot) => {
     const b = slot >> 2;

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeGroove, slotPos } from '../public/js/grooves.js';
-import { tapSession } from '../public/js/tap.js';
+import { tapSession, insights, RETRIGGER } from '../public/js/tap.js';
 
 const SIX = 0.125; // a 16th at 120 BPM, in seconds
 const E = [0, 2, 4, 6, 8, 10, 12, 14];
@@ -166,4 +166,61 @@ test('kit hits are checked for accents, ghost notes and open hi-hat', () => {
   assert.deepEqual(r.expression.ghosts, { ok: 1, total: 2 });
   assert.deepEqual(r.expression.opens, { ok: 1, total: 1 });
   assert.deepEqual(r.expression.closed, { ok: 7, total: 7 });
+});
+
+test('a pad that reports one stroke twice is counted once', () => {
+  const { pattern } = makeGroove('', { snare: [0, 4, 8, 12] });
+  const s = session({ pattern, ids: ['snare'] });
+  const kit = (velocity) => ({ velocity, note: 38 });
+  assert.equal(s.hit('snare', at(pattern, 0), 'midi', kit(20)), 'good');
+  assert.equal(s.hit('snare', at(pattern, 0, 0, RETRIGGER - 0.005), 'midi', kit(80)), 'good'); // the same stroke again
+  assert.equal(s.hit('snare', at(pattern, 4), 'midi', kit(70)), 'good');
+  assert.equal(s.hit('snare', at(pattern, 4, 0, 0.06), 'midi', kit(70)), 'bad'); // 60 ms later is a real extra hit
+  // On-screen taps are never merged: two fingers can land together.
+  assert.equal(s.hit('snare', at(pattern, 8)), 'good');
+  assert.equal(s.hit('snare', at(pattern, 8, 0, 0.01)), 'bad');
+  const r = s.result();
+  assert.deepEqual([r.on, r.missed, r.extras], [3, 1, 2]);
+  assert.equal(s.expected[0].vel, 80); // the harder of the two reports
+});
+
+test('the two strokes of a flam are not mistaken for a pad firing twice', () => {
+  const { pattern } = makeGroove('', { flam: { snare: [0] } });
+  const s = session({ pattern, ids: ['snare'] });
+  s.hit('snare', at(pattern, 0, 0, -0.02), 'midi', { velocity: 30, note: 38 });
+  s.hit('snare', at(pattern, 0), 'midi', { velocity: 90, note: 38 });
+  assert.deepEqual(s.result().expression.flams, { ok: 1, total: 1 });
+});
+
+test('the results say when you came in a bar late and where a chart slipped', () => {
+  const bar = makeGroove('', { hihat: [0, 4, 8, 12], snare: [4, 12], kick: [0, 8] }).pattern;
+  const ids = ['hihat', 'snare', 'kick'];
+  const s = session({ bars: [bar, bar, bar, bar], order: [0, 1, 2, 3], ids });
+  // Nothing in bar 1, all of bars 2 and 4, only the first note of bar 3.
+  for (const b of [1, 3]) for (const id of ids) bar[id].forEach((v, slot) => v && s.hit(id, at(bar, slot, b)));
+  s.hit('kick', at(bar, 0, 2));
+  const { tips } = s.result();
+  assert.equal(tips.length, 2);
+  assert.match(tips[0], /came in a bar late/);
+  assert.match(tips[1], /^Bar 3 is where it slipped: 7 of 8 notes missed/);
+});
+
+test('a clean run gets no advice, and a looped bar missed once is not called a bar', () => {
+  const { pattern } = makeGroove('', { snare: [0, 4, 8, 12] });
+  const clean = session({ pattern, ids: ['snare'], loops: 2 });
+  for (const b of [0, 1]) pattern.snare.forEach((v, slot) => v && clean.hit('snare', at(pattern, slot, b)));
+  assert.deepEqual(clean.result().tips, []);
+  const late = session({ pattern, ids: ['snare'], loops: 2 });
+  pattern.snare.forEach((v, slot) => v && late.hit('snare', at(pattern, slot, 1)));
+  assert.match(late.result().tips[0], /nothing was played the first time through/);
+});
+
+test('the results point out one drum running ahead of the others', () => {
+  const note = (id, d, n = 0) => ({ id, bar: 0, n, hit: true, d });
+  const expected = [...Array(6)].flatMap(() => [note('kick', -0.03), note('hihat', 0.002), note('snare', -0.002)]);
+  const tips = insights(expected);
+  assert.equal(tips.length, 1);
+  assert.match(tips[0], /^Your kick lands about 30 ms ahead of your other drums/);
+  assert.deepEqual(insights(expected.map((e) => ({ ...e, d: 0.01 }))), []); // all late together: the average line covers that
+  assert.match(insights(expected.map((e, i) => ({ ...e, hit: i < 3 })))[0], /Most of the notes were missed/);
 });

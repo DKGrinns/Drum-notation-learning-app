@@ -104,14 +104,37 @@ export function resetMap() {
 
 /** Timing correction for kit hits, in ms (positive: hits register late). */
 export const midiOffset = () => store.get('midi.offset', 0);
-export const setMidiOffset = (ms) => store.set('midi.offset', ms);
+export const setMidiOffset = (ms) => {
+  store.set('midi.offset', ms);
+  logEvent('note', { text: `Kit timing set to ${ms} ms` });
+};
+
+/**
+ * The softest hit that counts (MIDI velocity, 1–127). Pads pick up vibration from
+ * their neighbours and a kick beater resting on the head sends weak notes of its
+ * own; left in, those blips get scored as notes you never played.
+ */
+export const DEFAULT_FLOOR = 8;
+export const midiFloor = () => store.get('midi.floor', DEFAULT_FLOOR);
+export const setMidiFloor = (v) => {
+  store.set('midi.floor', v);
+  logEvent('note', { text: `Softest kit hit that counts set to ${v}` });
+};
+/**
+ * Is this hit too soft to be a real stroke? The kick's floor is twice as high:
+ * nobody plays ghost notes with a pedal, but beaters bounce.
+ */
+export const tooSoft = (id, velocity, floor = midiFloor()) => velocity < (id === 'kick' ? floor * 2 : floor);
 /**
  * Should the app make its own drum sound when you hit the kit? On unless switched
  * off: a kit's own sounds only come out of its module, so anyone listening through
  * the computer or phone would otherwise hear nothing when they play.
  */
 export const midiSounds = () => !!store.get('midi.sounds', true);
-export const setMidiSounds = (v) => store.set('midi.sounds', !!v);
+export const setMidiSounds = (v) => {
+  store.set('midi.sounds', !!v);
+  logEvent('note', { text: `App drum sounds ${v ? 'on' : 'off'}` });
+};
 
 /** The kits (MIDI inputs) plugged in right now. */
 export function midiInputs() {
@@ -139,6 +162,7 @@ export function handleMessage(data, timeStamp) {
   for (const fn of S.rawFns) fn({ note, velocity, ts });
   const id = loadMap()[note];
   if (!id || id === IGNORE || !byId[id]) return;
+  if (tooSoft(id, velocity)) return; // crosstalk or a bounce, not a stroke
   const hit = { id, ts, velocity, note, open: NOTES[note]?.[2] === 'open', source: 'midi' };
   for (const fn of S.hitFns) fn(hit);
 }

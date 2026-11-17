@@ -5,8 +5,8 @@
 // ("1 e & a"). A triplet beat (pattern.trip[beat] = 1) uses slots j = 0–2 as
 // 8th-note triplets ("1 trip let") and leaves j = 3 empty.
 //
-// meter: '4/4' (default), '3/4', '6/8' or '12/8'. A bar has meter.beats beats,
-// so a row has beats * 4 slots. In 6/8 and 12/8 (compound meters) the beat is a
+// meter: a key of METERS ('4/4' is the default). A bar has meter.beats beats,
+// so a row has beats * 4 slots. In 6/8, 9/8 and 12/8 (compound meters) the beat is a
 // dotted quarter split into three 8ths, which uses the same three slots as a
 // triplet beat ("1 & a"), but is written without the triplet 3.
 //
@@ -24,9 +24,16 @@ export const METERS = {
   '3/4': { id: '3/4', beats: 3, top: 3, bottom: 4, name: 'Three-four' },
   '2/4': { id: '2/4', beats: 2, top: 2, bottom: 4, name: 'Two-four' },
   '5/4': { id: '5/4', beats: 5, top: 5, bottom: 4, name: 'Five-four' },
+  // Uneven meters are counted in 8ths, grouped in twos and threes. `odd` lists the
+  // beats that are three 8ths long; the others are two. `group` says it in words.
   // Seven 8ths grouped 2 + 2 + 3: two ordinary beats, then one that is three 8ths long.
-  '7/8': { id: '7/8', beats: 3, top: 7, bottom: 8, odd: [2], name: 'Seven-eight' },
+  '7/8': { id: '7/8', beats: 3, top: 7, bottom: 8, odd: [2], group: '2 + 2 + 3', name: 'Seven-eight' },
+  '7/8 (3+2+2)': { id: '7/8 (3+2+2)', beats: 3, top: 7, bottom: 8, odd: [0], group: '3 + 2 + 2', name: 'Seven-eight' },
+  '7/8 (2+3+2)': { id: '7/8 (2+3+2)', beats: 3, top: 7, bottom: 8, odd: [1], group: '2 + 3 + 2', name: 'Seven-eight' },
+  '5/8': { id: '5/8', beats: 2, top: 5, bottom: 8, odd: [1], group: '2 + 3', name: 'Five-eight' },
+  '5/8 (3+2)': { id: '5/8 (3+2)', beats: 2, top: 5, bottom: 8, odd: [0], group: '3 + 2', name: 'Five-eight' },
   '6/8': { id: '6/8', beats: 2, top: 6, bottom: 8, compound: true, name: 'Six-eight' },
+  '9/8': { id: '9/8', beats: 3, top: 9, bottom: 8, compound: true, name: 'Nine-eight' },
   '12/8': { id: '12/8', beats: 4, top: 12, bottom: 8, compound: true, name: 'Twelve-eight' },
 };
 
@@ -88,6 +95,9 @@ export const PRESETS = [
   { name: '2/4 march', level: 'Beginner', spec: { meter: '2/4', hihat: [0, 2, 4, 6], snare: [4], kick: [0] } },
   { name: '7/8 groove', level: 'Advanced', spec: { meter: '7/8', hihat: [0, 2, 4, 6, 8, 9, 10], snare: [4, 10], kick: [0, 8] } },
   { name: '5/4 groove', level: 'Advanced', spec: { meter: '5/4', hihat: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18], snare: [4, 16], kick: [0, 6, 12] } },
+  { name: '7/8 groove (3+2+2)', level: 'Advanced', spec: { meter: '7/8 (3+2+2)', hihat: [0, 1, 2, 4, 6, 8, 10], snare: [4, 8], kick: [0] } },
+  { name: '5/8 groove', level: 'Advanced', spec: { meter: '5/8', hihat: [0, 2, 4, 5, 6], snare: [4], kick: [0] } },
+  { name: '9/8 groove', level: 'Advanced', spec: { meter: '9/8', hihat: [0, 1, 2, 4, 5, 6, 8, 9, 10], snare: [4], kick: [0, 8] } },
 ];
 
 // ---------- Meter ----------
@@ -210,7 +220,7 @@ export function normalizeGroove(g) {
 // ---------- Rhythm helpers ----------
 
 /** A beat split in three: a triplet beat, or any beat of a compound meter. */
-/** A beat that is three 8ths long in a meter whose other beats are two (the last beat of 7/8). */
+/** A beat that is three 8ths long in a meter whose other beats are two (one beat of 7/8 or 5/8). */
 export const isLongBeat = (p, beat) => !!meterOf(p).odd?.includes(beat);
 /** A beat split in three: a triplet, a compound-meter beat, or a long beat. */
 export const isTrip = (p, beat) => isCompound(p) || isLongBeat(p, beat) || !!p.trip?.[beat];
@@ -296,7 +306,7 @@ export function countLabel(slot, p = {}) {
   const b = slot >> 2;
   const j = slot & 3;
   if (meterOf(p).odd) {
-    // 7/8 is counted in 8ths: 1 2, 3 4, 5 6 7. A 16th in between is an "&".
+    // Uneven meters are counted in 8ths (7/8: 1 2, 3 4, 5 6 7). A 16th in between is an "&".
     const first = beatStart(p, b) / 2 + 1;
     if (isLongBeat(p, b)) return String(first + j);
     return `${first + (j >> 1)}${j % 2 ? ' &' : ''}`;
@@ -364,6 +374,9 @@ export const STYLES = [
   { id: '3/4', name: '3/4 time' },
   { id: '6/8', name: '6/8 and 12/8' },
   { id: 'dynamics', name: 'Accents and ghosts' },
+  { id: 'odd', name: 'Odd time' },
+  { id: 'rudiments', name: 'Flams, drags and rolls' },
+  { id: '32nds', name: '32nd notes' },
 ];
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -438,6 +451,43 @@ function addDynamics(spec, hands, ghosts) {
 
 function styleGroove(id) {
   const name = STYLES.find((s) => s.id === id)?.name || 'Groove';
+  if (id === 'odd') {
+    // 7/8 or 5/8 in any grouping, or 9/8: 8th notes in the hands, a kick on 1, a snare starting a later beat.
+    const m = METERS[pick(['7/8', '7/8 (3+2+2)', '7/8 (2+3+2)', '5/8', '5/8 (3+2)', '9/8'])];
+    const hands = pick(['hihat', 'hihat', 'ride']);
+    const eighths = [];
+    for (let b = 0; b < m.beats; b++) eighths.push(...(m.compound || m.odd.includes(b) ? [b * 4, b * 4 + 1, b * 4 + 2] : [b * 4, b * 4 + 2]));
+    const spec = { meter: m.id, [hands]: eighths, snare: m.beats === 2 ? [4] : pick([[4, 8], [8], [4]]) };
+    const free = eighths.filter((s) => s && !spec.snare.includes(s));
+    spec.kick = [0, ...sample(free, pick([0, 1, 1, 2]))];
+    if (chance(0.4)) spec.accent = { [hands]: eighths.filter((s) => s % 4 === 0) }; // lean on the start of each group
+    return makeGroove(`${m.id} groove`, spec);
+  }
+  if (id === 'rudiments') {
+    // A plain 8th-note groove whose backbeats are flams, drags or rolls.
+    const kinds = sample(['drag', 'drag', 'roll', 'flam', 'hit'], 2);
+    if (!kinds.includes('drag') && !kinds.includes('roll')) kinds[1] = 'drag';
+    const spec = { hihat: E, snare: [], kick: [0, ...sample([6, 8, 10], pick([1, 2]))] };
+    [4, 12].forEach((s, i) => {
+      if (kinds[i] === 'hit') spec.snare.push(s);
+      else (spec[kinds[i]] ||= { snare: [] }).snare.push(s);
+    });
+    return makeGroove(`${name} groove`, spec);
+  }
+  if (id === '32nds') {
+    // One beat is split into 32nds: a burst on the hi-hat, or two quick snare notes leading into the next beat.
+    const b = pick([0, 1, 2]); // never the last beat: a chart puts its fill there
+    const spec = { hihat: [...(chance(0.4) ? S : E)], snare: [4, 12], fine: [b] };
+    if (chance(0.5)) {
+      spec.hihat = [...new Set([...spec.hihat, b * 4 + 2, b * 4 + 3])];
+      spec.x = { hihat: [b * 4 + 2, b * 4 + 3] }; // four 32nds on the "& a"
+    } else {
+      spec.snare.push(b * 4 + 3);
+      spec.x = { snare: [b * 4 + 3] }; // two 32nds on the "a"
+    }
+    spec.kick = [0, ...sample([6, 8, 10, 11, 14], pick([1, 2]))].filter((s) => !spec.snare.includes(s));
+    return makeGroove(`${name} groove`, spec);
+  }
   if (id === 'shuffle') {
     const hands = pick(['hihat', 'ride']);
     const kick = new Set([0, ...sample([2, 6, 8, 10, 14], pick([1, 2, 3]))]);
@@ -542,6 +592,7 @@ function addFill(p, level) {
   const put = (b, ids) => {
     for (const id of HANDS) for (let j = 0; j < 4; j++) p[id][b * 4 + j] = 0;
     for (let j = 1; j < 4; j++) p.kick[b * 4 + j] = 0;
+    if (p.fine) p.fine[b] = 0; // the fill replaces any 32nds on this beat
     ids.forEach((id, j) => {
       if (id) p[id][b * 4 + j] = NOTE.HIT;
     });

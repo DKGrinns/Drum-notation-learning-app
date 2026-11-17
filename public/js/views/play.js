@@ -327,6 +327,7 @@ function onEvent(ev) {
 }
 
 function stop(userStopped) {
+  if (active()) S.session?.abandon();
   transport.stop();
   S.phase = 'idle';
   els.overlay.classList.remove('show');

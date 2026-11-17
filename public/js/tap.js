@@ -13,7 +13,7 @@ import { barSlots, barLength, slotPos, nearestGap, NOTE, isHit, allSlots, noteAt
 import { audioTimeAt, playInstrument } from './audio.js';
 import { store } from './store.js';
 import { midiOffset, midiSounds, onMidiHit } from './midi.js';
-import { logRun } from './diag.js';
+import { logRun, logEvent } from './diag.js';
 import { micOffset, onMicHit } from './mic.js';
 
 /** Seconds either side of a note that count as "on time". */
@@ -22,12 +22,18 @@ export const ON_TIME = 0.045;
 const FLAM_GAP = 0.12;
 /** How many strokes a written note takes: a flam two, a drag three, a roll as many as you like. */
 const STROKES = { [NOTE.FLAM]: 2, [NOTE.DRAG]: 3, [NOTE.ROLL]: Infinity };
+/**
+ * Two kit hits on one drum closer together than this (seconds) are one stroke that
+ * the pad reported twice. Nobody plays that fast, except inside a flam, drag or roll.
+ */
+export const RETRIGGER = 0.03;
 
 /** The calibrated tap offset in ms (positive: your taps register late). */
 export const tapOffset = () => store.get('play.offset', 0);
 export const setTapOffset = (ms) => {
   store.set('play.offset', ms);
   store.set('calibrated', true);
+  logEvent('note', { text: `Tap timing set to ${ms} ms` });
 };
 export const isCalibrated = () => !!store.get('calibrated', false);
 export const fmtOffset = (v) => (v === 0 ? '0 ms' : `${v > 0 ? '+' : '−'}${Math.abs(v)} ms`);
@@ -52,7 +58,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     for (const slot of allSlots(p)) {
       for (const id of ids) {
         if (isHit(noteAt(p, id, slot))) {
-          expected.push({ id, slot, bar, value: noteAt(p, id, slot), time: startTime + (n * barLen + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
+          expected.push({ id, slot, bar, n, value: noteAt(p, id, slot), time: startTime + (n * barLen + slotPos(p, slot)) * sixteenth, hit: false, d: 0 });
         }
       }
     }
@@ -61,6 +67,8 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
   const gap = Object.fromEntries(ids.map((id) => [id, Math.min(...seq.map((p) => nearestGap(p, id)))]));
   const S = { expected, extras: 0 };
   const taps = []; // every tap as it came in, for diagnostics
+  const lastHit = {}; // per drum: the last hit, to spot a pad reporting one stroke twice
+  logEvent('note', { text: `Run started: ${label || '(no label)'}`, startTime: Math.round(startTime * 1e4) / 1e4 });
 
   /**
    * Judge a tap (event timeStamp). A kit hit (source 'midi') has its own timing
@@ -69,6 +77,22 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
    */
   S.hit = (id, ts, source, info) => {
     const t = toAudioTime(ts) - (source === 'midi' ? midiOffset() : source === 'mic' ? micOffset() : tapOffset()) / 1000;
+    const round = (x) => Math.round(x * 1e4) / 1e4;
+    // A pad that fires twice for one stroke: count it once, at the strength of the harder of the two.
+    const prev = lastHit[id];
+    if (source === 'midi' && prev && t >= prev.t && t - prev.t <= RETRIGGER && !(prev.e && STROKES[prev.e.value])) {
+      taps.push({ id, t: round(t), src: source, vel: info?.velocity, open: info?.open || undefined, note: info?.note, d: null, dup: true });
+      if (prev.e && info?.velocity > (prev.e.vel || 0)) {
+        prev.e.vel = info.velocity;
+        prev.e.open = !!info.open;
+        prev.e.note = info.note;
+      }
+      return prev.kind;
+    }
+    const seen = (e, kind) => {
+      lastHit[id] = { t, e, kind };
+      return kind;
+    };
     const win = Math.min(0.15, sixteenth * 0.5 * (gap[id] ?? 4));
     let best = null;
     let bestD = Infinity;
@@ -86,21 +110,20 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     const flam = best ? null : expected.find((e) => e.id === id && e.hit && e.strokes < (STROKES[e.value] || 1) && t > e.t1
       && (e.value === NOTE.ROLL ? t - e.time <= sixteenth * 4 : t - e.t1 <= FLAM_GAP * (STROKES[e.value] - 1) && Math.abs(t - e.time) <= win));
     // t is the corrected time, so a recording can be replayed without knowing the offsets.
-    const round = (x) => Math.round(x * 1e4) / 1e4;
     taps.push({ id, t: round(t), src: source || 'tap', vel: info?.velocity, open: info?.open || undefined, note: info?.note, d: best ? round(bestD) : flam ? round(t - flam.time) : null });
     if (flam) {
       flam.strokes++;
-      if (flam.value === NOTE.ROLL) return 'good'; // a roll starts on the beat: its first stroke set the timing
+      if (flam.value === NOTE.ROLL) return seen(flam, 'good'); // a roll starts on the beat: its first stroke set the timing
       flam.d = t - flam.time;
       if (source === 'midi' && info?.velocity) {
         flam.graceVel = flam.vel;
         flam.vel = info.velocity;
       }
-      return Math.abs(flam.d) <= ON_TIME ? 'good' : 'ok';
+      return seen(flam, Math.abs(flam.d) <= ON_TIME ? 'good' : 'ok');
     }
     if (!best) {
       S.extras++;
-      return 'bad';
+      return seen(null, 'bad');
     }
     best.hit = true;
     best.d = bestD;
@@ -111,7 +134,7 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
       best.open = !!info.open;
       best.note = info.note;
     }
-    return Math.abs(bestD) <= ON_TIME ? 'good' : 'ok';
+    return seen(best, Math.abs(bestD) <= ON_TIME ? 'good' : 'ok');
   };
 
   // The closest that two notes at different moments get, on any drum.
@@ -216,7 +239,10 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     const score = Math.max(0, Math.round((100 * (on + 0.5 * (early + late) - 0.25 * S.extras)) / total));
     const colorFor = { on: 'var(--green)', off: 'var(--orange)', miss: 'var(--red)' };
     const colors = Object.fromEntries(Object.entries(byNote).map(([k, v]) => [k, colorFor[v]]));
-    const result = { score, on, early, late, missed, hits, extras: S.extras, mean: hits ? (sum / hits) * 1000 : 0, colors, expression: expression() };
+    const result = {
+      score, on, early, late, missed, hits, extras: S.extras, mean: hits ? (sum / hits) * 1000 : 0, colors, expression: expression(),
+      tips: insights(expected, { chart: ord.length > 1, loops }),
+    };
     logRun({
       label, ids, loops, startTime, sixteenth,
       bars: bars || [pattern], order: (bars && order) || null, single: !bars,
@@ -225,7 +251,70 @@ export function tapSession({ pattern, bars, order, ids, loops, startTime, sixtee
     });
     return result;
   };
+  /** The run was given up before the end (noted for diagnostics; nothing is scored). */
+  S.abandon = () => logEvent('note', { text: `Run stopped early: ${label || '(no label)'}`, taps: taps.length });
   return S;
+}
+
+const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+const nth = (n) => ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth'][n] || `${n + 1}th`;
+
+/**
+ * What went wrong, in plain words: up to three sentences picked from the scored
+ * notes. Each expected note has { id, bar, n (which bar of the run it is in), hit, d }.
+ * chart: the music has more than one bar. loops: how many times through.
+ */
+export function insights(expected, { chart = false, loops = 1 } = {}) {
+  const tips = [];
+  if (!expected.length) return tips;
+  const hit = expected.filter((e) => e.hit);
+  const byBar = [];
+  for (const e of expected) (byBar[e.n] ||= []).push(e);
+  const missedIn = (list) => list.filter((e) => !e.hit).length;
+
+  // 1. Came in late: nothing in the first bar, but playing after it.
+  let from = 0;
+  if (byBar.length >= 2 && missedIn(byBar[0]) === byBar[0].length && hit.length >= 3) {
+    from = 1;
+    tips.push(chart
+      ? 'You came in a bar late: nothing was played in the first bar. Start on the first beat after the count-in.'
+      : 'You came in late: nothing was played the first time through. Start on the first beat after the count-in.');
+  }
+
+  // 2. Where a chart fell apart: the bar with the largest share of its notes missed (at least half).
+  const rest = expected.filter((e) => e.n >= from);
+  const lost = missedIn(rest) / (rest.length || 1);
+  if (chart && lost < 0.6) {
+    let worst = null;
+    for (let n = from; n < byBar.length; n++) {
+      const list = byBar[n] || [];
+      const m = missedIn(list);
+      if (list.length >= 3 && m / list.length >= 0.5 && (!worst || m / list.length > worst.m / worst.total)) worst = { n, m, total: list.length, bar: list[0].bar };
+    }
+    if (worst) {
+      const perPass = byBar.length / loops;
+      const where = loops > 1 ? `Bar ${worst.bar + 1}, the ${nth(Math.floor(worst.n / perPass))} time through,` : `Bar ${worst.bar + 1}`;
+      tips.push(`${where} is where it slipped: ${worst.m} of ${worst.total} notes missed. Practice that bar on its own.`);
+    }
+  }
+  if (lost >= 0.6 && hit.length) tips.push('Most of the notes were missed. Try it at a slower tempo first.');
+
+  // 3. One drum ahead of or behind the others.
+  if (hit.length >= 8) {
+    let odd = null;
+    for (const id of new Set(hit.map((e) => e.id))) {
+      const mine = hit.filter((e) => e.id === id).map((e) => e.d * 1000);
+      const others = hit.filter((e) => e.id !== id).map((e) => e.d * 1000);
+      if (mine.length < 4 || others.length < 4) continue;
+      const gap = mean(mine) - mean(others);
+      if (Math.abs(gap) >= 20 && (!odd || Math.abs(gap) > Math.abs(odd.gap))) odd = { id, gap };
+    }
+    if (odd) {
+      const name = (KIT.find((k) => k.id === odd.id)?.name || odd.id).toLowerCase();
+      tips.push(`Your ${name} lands about ${Math.round(Math.abs(odd.gap))} ms ${odd.gap < 0 ? 'ahead of' : 'behind'} your other drums. Listen for them landing together.`);
+    }
+  }
+  return tips.slice(0, 3);
 }
 
 // ---------- Shared bits of the tap screens ----------
@@ -301,6 +390,7 @@ export function resultDetails(r) {
     h('div', { class: 'stats' }, stat(r.on, 'On time', 'on'), stat(r.early, 'Early', 'off'), stat(r.late, 'Late', 'off'), stat(r.missed, 'Missed', 'miss')),
     tendency && h('p', { class: 'tendency' }, tendency),
     r.extras ? h('p', { class: 'tendency' }, `${r.extras} extra tap${r.extras === 1 ? '' : 's'} that didn’t match a note.`) : '',
+    (r.tips || []).map((t) => h('p', { class: 'tendency' }, t)),
     r.expression ? expressionDetails(r.expression) : '',
   ];
 }

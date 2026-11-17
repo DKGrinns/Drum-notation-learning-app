@@ -680,6 +680,7 @@ function runDrill(li, ci) {
   }
 
   function stop() {
+    if (active()) D.session?.abandon();
     transport.stop();
     D.phase = 'idle';
     overlay.classList.remove('show');

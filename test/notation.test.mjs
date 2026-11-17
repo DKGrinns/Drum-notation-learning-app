@@ -97,9 +97,21 @@ test('triplets, stickings and time signatures are labelled', () => {
   assert.deepEqual(texts(trip, 'tuplet'), ['3', '3']);
   const stick = draw({ snare: [0, 4, 8, 12], sticking: { R: [0, 8], L: [4, 12] } }).h;
   assert.deepEqual(texts(stick, 'sticking'), ['R', 'L', 'R', 'L']);
-  for (const [meter, top, bottom] of [['3/4', '3', '4'], ['5/4', '5', '4'], ['6/8', '6', '8'], ['12/8', '12', '8'], ['7/8', '7', '8']]) {
+  for (const [meter, top, bottom] of [['3/4', '3', '4'], ['5/4', '5', '4'], ['6/8', '6', '8'], ['12/8', '12', '8'], ['7/8', '7', '8'], ['7/8 (3+2+2)', '7', '8'], ['5/8', '5', '8'], ['5/8 (3+2)', '5', '8'], ['9/8', '9', '8']]) {
     assert.deepEqual(texts(draw({ meter, snare: [0] }).h, 'timesig'), [top, bottom]);
   }
+});
+
+test('on the grid a beat of 32nds is twice as wide, and asks for enough room', async () => {
+  const { gridMinWidth, LEFT, RIGHT, BEAT_GAP } = await import('../public/js/notation.js');
+  const spec = { snare: [0, 1, 4, 8, 9, 10, 11, 12], fine: [2], x: { snare: [8, 9, 10, 11] } };
+  const { staff } = draw(spec, { layout: 'grid', width: 500 });
+  const sixteenth = staff.xOf(1) - staff.xOf(0);
+  assert.ok(Math.abs(staff.xOf(8.5) - staff.xOf(8) - sixteenth) < 0.01, 'a 32nd gets the room of a 16th elsewhere');
+  assert.ok(Math.abs(staff.xOf(12) - staff.xOf(8) - (8 * sixteenth + BEAT_GAP)) < 0.01, 'the split beat is two beats wide');
+  const p = G.makeGroove('', spec).pattern;
+  assert.equal(gridMinWidth(p), LEFT + RIGHT + 3 * BEAT_GAP + 20 * 15); // five beats' worth of 15 px columns
+  assert.equal(gridMinWidth(G.makeGroove('', { snare: [0] }).pattern), 0); // no 32nds: any width will do
 });
 
 test('in 7/8 every 8th note gets the same room on the grid', () => {

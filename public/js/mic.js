@@ -3,6 +3,7 @@
 // counts for whichever note is due (see tapSession.hitAny).
 import { getCtx } from './audio.js';
 import { store } from './store.js';
+import { logEvent } from './diag.js';
 
 const S = { state: 'off', stream: null, source: null, node: null, hitFns: new Set(), levelFns: new Set(), changeFns: new Set() };
 
@@ -14,7 +15,10 @@ export const micWanted = () => !!store.get('mic.on', false);
 
 /** Timing correction for microphone hits, in ms (positive: hits register late). */
 export const micOffset = () => store.get('mic.offset', 0);
-export const setMicOffset = (ms) => store.set('mic.offset', ms);
+export const setMicOffset = (ms) => {
+  store.set('mic.offset', ms);
+  logEvent('note', { text: `Microphone timing set to ${ms} ms` });
+};
 
 /** Sensitivity 1 (only hard hits) to 10 (soft taps too). */
 export const micSensitivity = () => store.get('mic.sens', 5);

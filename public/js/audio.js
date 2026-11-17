@@ -44,6 +44,28 @@ export function audioInfo() {
   };
 }
 
+/**
+ * How long (ms) a sound takes to come out of this device once the app plays it,
+ * as the browser reports it. 0 if it isn't known yet. Nothing the app can shorten:
+ * it is the speaker or headphone path (Bluetooth is the slowest).
+ */
+export function outputDelayMs() {
+  const info = audioInfo();
+  return info ? info.baseLatencyMs + info.outputLatencyMs : 0;
+}
+
+/**
+ * What to tell someone about the app's drum sounds trailing their sticks, or ''
+ * if the delay is too short to notice (under 30 ms).
+ */
+export function delayAdvice(ms) {
+  if (!(ms >= 30)) return '';
+  const size = ms >= 120 ? 'a long way' : ms >= 60 ? 'clearly' : 'slightly';
+  return `On this device the app’s drum sounds come out about ${Math.round(ms / 5) * 5} ms after you hit, so they will trail ${size} behind your sticks. `
+    + `${ms >= 120 ? 'Wireless headphones add most of that: wired ones are far quicker. ' : ''}`
+    + 'For no delay at all, listen through your kit’s own module and switch App drum sounds off. Your scores are not affected.';
+}
+
 /** Browsers only allow audio after a user gesture; call this from the first tap. */
 export function unlockAudio() {
   const c = getCtx();

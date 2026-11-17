@@ -60,3 +60,26 @@ test('hit-to-learn moves a note to another drum, and reset restores it', () => {
   assert.equal(send(38).id, 'snare');
   assert.equal(send(60), undefined);
 });
+
+test('hits too soft to be a stroke are dropped, with a higher limit for the kick', () => {
+  assert.equal(M.midiFloor(), M.DEFAULT_FLOOR);
+  assert.equal(send(38, 5), undefined); // crosstalk on the snare
+  assert.equal(send(38, 12).velocity, 12); // a ghost note still counts
+  assert.equal(send(36, 11), undefined); // a beater bounce
+  assert.equal(send(36, 20).id, 'kick');
+  assert.equal(M.tooSoft('snare', 9, 10), true);
+  assert.equal(M.tooSoft('snare', 10, 10), false);
+  assert.equal(M.tooSoft('kick', 19, 10), true);
+});
+
+test('a hit that is too soft is still shown to the kit setup screen', () => {
+  const raw = [];
+  const off = M.onMidiNote((n) => raw.push(n));
+  send(38, 3);
+  off();
+  assert.deepEqual(raw.map((n) => [n.note, n.velocity]), [[38, 3]]);
+});
+
+test('the app sounds kit hits unless that has been switched off', () => {
+  assert.equal(M.midiSounds(), true);
+});

@@ -83,6 +83,7 @@ function show(name) {
     t.setAttribute('aria-selected', on);
   }
   store.set('tab', name);
+  logEvent('note', { text: `Opened the ${name} tab` });
   window.scrollTo(0, 0);
 }
 

@@ -143,6 +143,9 @@ main { padding: 4px 16px 24px; }
 .row-main { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .row-sub { font-size: 13px; color: var(--ink2); }
 .row-main:has(+ .row-value) { flex: 1 0 auto; } /* the label keeps its width; a long value truncates */
+/* Next to a number and a stepper there is little room: let the explanation wrap instead of pushing them off the row. */
+.row-main:has(+ .row-value + .stepper) { flex: 1 1 0; }
+.row-main:has(+ .row-value + .stepper) .row-sub { white-space: normal; }
 .row-value {
   color: var(--ink2); font-variant-numeric: tabular-nums;
   min-width: 0; max-width: 72%; margin-left: 12px; text-align: right;
@@ -314,6 +317,8 @@ main { padding: 4px 16px 24px; }
 
 /* ---------- Step grid ---------- */
 .grid { display: grid; row-gap: 5px; margin-top: 4px; }
+/* A bar with 32nds can be wider than the screen: the staff and its grid scroll sideways together. */
+.build-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .grid .count {
   text-align: center; font-size: 11px; font-weight: 500;
   color: var(--ink3); padding-bottom: 1px; border-radius: 4px;
@@ -644,6 +649,8 @@ body.compact main { padding-top: 8px; }
 .cell.v3.on { opacity: 0.42; }                    /* ghost: a soft note */
 .cell.v4::after { content: 'o'; font-size: 14px; } /* open hi-hat */
 .cell.v5 { background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.6) 0 3px, transparent 3px); } /* flam */
+.brush-host .segmented button { padding-left: 2px; padding-right: 2px; }
+.help-list .row-sub { white-space: normal; }
 .segmented.brush button { padding-left: 1px; padding-right: 1px; font-size: 13px; }
 .segmented.brush { flex-wrap: wrap; }
 .segmented.brush button { flex: 1 0 15%; }

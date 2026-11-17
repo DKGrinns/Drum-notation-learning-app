@@ -4,11 +4,11 @@ import { h, modal, row, stepper, toggle, toast } from './ui.js';
 import { KIT, byId } from './kit.js';
 import { fmtOffset } from './tap.js';
 import { openCalibration } from './calibrate.js';
-import { audioInfo } from './audio.js';
+import { audioInfo, outputDelayMs, delayAdvice } from './audio.js';
 import { diagOn, setDiagOn, diagCounts, clearDiag, downloadDiag } from './diag.js';
 import {
   midiSupported, midiState, midiInputs, enableMidi, disableMidi, midiMap, notesFor, assignNotes, resetMap, isDefaultMap,
-  noteName, IGNORE, midiOffset, setMidiOffset, midiSounds, setMidiSounds, onMidiNote, onMidiChange,
+  noteName, IGNORE, midiOffset, setMidiOffset, midiSounds, setMidiSounds, midiFloor, setMidiFloor, tooSoft, onMidiNote, onMidiChange,
 } from './midi.js';
 
 /** One line saying whether a kit is connected, for a settings row. */
@@ -78,6 +78,7 @@ export function openKitSetup(onClose) {
 
   const draw = () => {
     const offsetVal = h('span', { class: 'row-value' }, fmtOffset(midiOffset()));
+    const floorVal = h('span', { class: 'row-value' }, midiFloor());
     body.replaceChildren(...[
       statusCard(),
       h('div', { class: 'section-label' }, 'Your drums'),
@@ -95,7 +96,18 @@ export function openKitSetup(onClose) {
             offsetVal.textContent = fmtOffset(v);
           },
         })),
-        row(['App drum sounds', h('span', { class: 'row-sub' }, 'Hear each hit through this device. Turn off if you listen through your kit’s own headphones.')], toggle(midiSounds(), setMidiSounds, 'App drum sounds for kit hits'))),
+        row(['Softest hit that counts', h('span', { class: 'row-sub' }, 'Weaker hits are ignored. Twice this for the kick.')], floorVal, stepper({
+          value: midiFloor(), min: 1, max: 40, label: 'softest hit that counts',
+          onChange: (v) => {
+            setMidiFloor(v);
+            floorVal.textContent = v;
+          },
+        })),
+        row(['App drum sounds', h('span', { class: 'row-sub' }, 'Off if you listen through the kit’s module')], toggle(midiSounds(), (v) => {
+          setMidiSounds(v);
+          draw();
+        }, 'App drum sounds for kit hits'))),
+      midiSounds() && delayAdvice(outputDelayMs()) && h('p', { class: 'footnote' }, delayAdvice(outputDelayMs())),
       midiState() === 'on' && h('button', { type: 'button', class: 'btn-plain', onClick: () => disableMidi() }, 'Disconnect'),
       h('div', { class: 'section-label' }, 'Diagnostics'),
       h('div', { class: 'list' },
@@ -123,7 +135,7 @@ export function openKitSetup(onClose) {
       return;
     }
     const id = midiMap()[note];
-    const to = !id ? 'not set to any drum' : id === IGNORE ? 'heard, not scored' : byId[id]?.name;
+    const to = !id ? 'not set to any drum' : id === IGNORE ? 'heard, not scored' : tooSoft(id, velocity) ? `${byId[id]?.name}, too soft to count` : byId[id]?.name;
     monitor.textContent = `${noteName(note)} · note ${note} · strength ${velocity} → ${to}`;
     monitor.classList.remove('hit');
     void monitor.offsetWidth;
