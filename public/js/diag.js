@@ -81,7 +81,7 @@ export function diagReport(extra = {}) {
       kitOffset: store.get('midi.offset', 0),
       calibrated: store.get('calibrated', false),
       customKitMap: store.get('midi.map', null),
-      kitSounds: store.get('midi.sounds', false),
+      kitSounds: store.get('midi.sounds', true),
     },
     ...extra,
     runs,

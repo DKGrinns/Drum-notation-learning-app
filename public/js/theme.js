@@ -11,8 +11,19 @@ export const THEMES = [
   { id: 'groove', name: 'Groovebox', detail: 'Near-black with glowing pads, like Maschine', bar: '#131313' },
 ];
 
-const find = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
-export const currentTheme = () => find(store.get('theme', 'auto'));
+/** The look a new user gets (index.html applies the same one before first paint). */
+const DEFAULT = 'studio';
+const find = (id) => THEMES.find((t) => t.id === id) || THEMES.find((t) => t.id === DEFAULT);
+export const currentTheme = () => find(store.get('theme', DEFAULT));
+
+/** The colour of the phone's status bar area. */
+function paintBar(t) {
+  for (const m of document.querySelectorAll('meta[name="theme-color"]')) {
+    m.dataset.auto = m.dataset.auto || m.content;
+    m.content = t.bar || m.dataset.auto;
+  }
+}
+if (typeof document !== 'undefined') paintBar(currentTheme());
 
 /** Switch the look now and remember it. */
 export function setTheme(id) {
@@ -20,11 +31,7 @@ export function setTheme(id) {
   store.set('theme', t.id);
   if (t.id === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t.id;
-  // The colour of the phone's status bar area.
-  for (const m of document.querySelectorAll('meta[name="theme-color"]')) {
-    m.dataset.auto = m.dataset.auto || m.content;
-    m.content = t.bar || m.dataset.auto;
-  }
+  paintBar(t);
 }
 
 export function openThemePicker(onChange) {

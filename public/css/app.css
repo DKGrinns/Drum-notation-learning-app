@@ -94,6 +94,11 @@ button:disabled { cursor: default; }
 .nav-btn.bold { font-weight: 600; }
 .nav-btn:active { opacity: 0.4; }
 #navRight { margin-left: auto; }
+/* The Settings gear: always at the far right of the bar, after a view's own button. */
+.nav-gear { margin-left: 16px; padding: 8px 0 8px 4px; display: flex; align-items: center; }
+.nav-gear svg { width: 22px; height: 22px; }
+#navRight[hidden] + .nav-gear { margin-left: auto; }
+.settings .section-label:first-child { margin-top: 4px; }
 .large-title { margin: 0; padding: 2px 16px 10px; font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: 0.01em; }
 
 main { padding: 4px 16px 24px; }

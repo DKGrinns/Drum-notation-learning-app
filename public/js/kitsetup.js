@@ -95,7 +95,7 @@ export function openKitSetup(onClose) {
             offsetVal.textContent = fmtOffset(v);
           },
         })),
-        row(['App drum sounds', h('span', { class: 'row-sub' }, 'Off: you hear your kit’s own sounds')], toggle(midiSounds(), setMidiSounds, 'App drum sounds for kit hits'))),
+        row(['App drum sounds', h('span', { class: 'row-sub' }, 'Hear each hit through this device. Turn off if you listen through your kit’s own headphones.')], toggle(midiSounds(), setMidiSounds, 'App drum sounds for kit hits'))),
       midiState() === 'on' && h('button', { type: 'button', class: 'btn-plain', onClick: () => disableMidi() }, 'Disconnect'),
       h('div', { class: 'section-label' }, 'Diagnostics'),
       h('div', { class: 'list' },

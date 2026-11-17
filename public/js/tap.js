@@ -10,9 +10,9 @@
 import { h } from './ui.js';
 import { KIT } from './kit.js';
 import { barSlots, barLength, slotPos, nearestGap, NOTE, isHit, allSlots, noteAt } from './grooves.js';
-import { audioTimeAt } from './audio.js';
+import { audioTimeAt, playInstrument } from './audio.js';
 import { store } from './store.js';
-import { midiOffset, onMidiHit } from './midi.js';
+import { midiOffset, midiSounds, onMidiHit } from './midi.js';
 import { logRun } from './diag.js';
 import { micOffset, onMicHit } from './mic.js';
 
@@ -261,6 +261,8 @@ export function keyHandler(getKits, onHit, padsEl) {
  */
 export function kitHandler(getKits, onHit, padsEl) {
   return onMidiHit((hit) => {
+    // Sound every drum you hit, harder hits louder, even ones this exercise doesn't use.
+    if (midiSounds()) playInstrument(hit.open ? 'hihatOpen' : hit.id, undefined, 0.35 + 0.65 * (hit.velocity / 127));
     const k = getKits().find((x) => x.id === hit.id);
     if (!k) return; // a drum this exercise doesn't use: let it pass
     onHit(k.id, hit.ts, padsEl.querySelector(`[data-id="${k.id}"]`), hit);

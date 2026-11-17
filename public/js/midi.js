@@ -105,8 +105,12 @@ export function resetMap() {
 /** Timing correction for kit hits, in ms (positive: hits register late). */
 export const midiOffset = () => store.get('midi.offset', 0);
 export const setMidiOffset = (ms) => store.set('midi.offset', ms);
-/** Should the app make its own drum sound when you hit the kit? (Your module already does.) */
-export const midiSounds = () => !!store.get('midi.sounds', false);
+/**
+ * Should the app make its own drum sound when you hit the kit? On unless switched
+ * off: a kit's own sounds only come out of its module, so anyone listening through
+ * the computer or phone would otherwise hear nothing when they play.
+ */
+export const midiSounds = () => !!store.get('midi.sounds', true);
 export const setMidiSounds = (v) => store.set('midi.sounds', !!v);
 
 /** The kits (MIDI inputs) plugged in right now. */

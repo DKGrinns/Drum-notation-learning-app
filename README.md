@@ -30,31 +30,31 @@ With screen taps, accents, ghost notes and flams are scored for **timing only**:
 
 ### Electronic drum kits
 
-**Play → Options → Electronic drum kit** (also under Learn → Progress) connects a kit over USB MIDI. It works in Chrome and Edge on Android, Windows, Mac and Chromebooks; iPhone and iPad browsers have no MIDI support.
+**Settings → Electronic drum kit** (the gear at the top right of every tab) connects a kit over USB MIDI. It works in Chrome and Edge on Android, Windows, Mac and Chromebooks; iPhone and iPad browsers have no MIDI support.
 
 - The General MIDI drum layout and Roland's are built in, written out in full for the **TD-17KVX with the VH-10 hi-hat**: head and rim on the snare and toms, cross-stick, bow and edge on both crashes, bow, edge and bell on the ride, and open and closed bow and edge on the hi-hat. See the table at the top of `js/midi.js`.
 - The setup screen shows what each hit was heard as. **Learn** next to a drum re-teaches it: hit every part of that pad, then press Done.
 - Kit hits have their own timing correction (**Calibrate with the kit**), separate from screen taps.
-- The app stays silent for kit hits by default, because the module makes the sound.
+- The app plays its own drum sound for each kit hit by default, so you hear your playing through the same speaker or headphones as the click. Turn **App drum sounds** off if you listen through the kit's module instead.
 - Every drum written in the music is scored, including the **hi-hat pedal** (an x below the staff). Drums that an exercise doesn't use are ignored.
 - After a run, **From your kit** shows how many accents, ghost notes and open (and closed) hi-hats came out right. Loud and soft are judged against your own normal notes on the same drum: an accent is at least 15% harder, a ghost note at most 60% as hard. This is shown beside the timing score, not folded into it.
 - The Roland note numbers were checked against a published TD-17 note list (all 24 zones match), but not yet on a real kit.
 
 ### Microphone
 
-**Play → Options → Microphone** lets you play along on a practice pad or an acoustic drum. The app listens for hits (nothing is recorded or sent anywhere). A microphone can tell when you hit but not which drum, so each hit counts for whichever note is due. Wear headphones, or it will hear the app's own click. It has its own sensitivity setting and timing calibration.
+**Settings → Microphone** lets you play along on a practice pad or an acoustic drum. The app listens for hits (nothing is recorded or sent anywhere). A microphone can tell when you hit but not which drum, so each hit counts for whichever note is due. Wear headphones, or it will hear the app's own click. It has its own sensitivity setting and timing calibration.
 
 ### Appearance
 
-**Learn → Progress → Look** changes the whole app's style:
+**Settings → Look** changes the whole app's style:
 
-- **Classic**: the original, light or dark to match your device.
-- **Studio Gray** and **Studio Dark**: flat mid-grey panels with orange and cyan, modelled on Ableton Live. The greys and accents are the values in Live 11's own Mid Light and Mid Dark theme files (listed beside each colour in `css/themes.css`).
+- **Classic**: the original iOS-style look, light or dark to match your device.
+- **Studio Gray** (the default) and **Studio Dark**: flat mid-grey panels with orange and cyan, modelled on Ableton Live. The greys and accents are the values in Live 11's own Mid Light and Mid Dark theme files (listed beside each colour in `css/themes.css`).
 - **Groovebox**: near-black with white lit buttons and pads that glow in their drum's colour, in the spirit of NI Maschine. Maschine's colours aren't published, so these were chosen by eye.
 
 ### First run
 
-A four-card tour opens the first time the app loads. Replay it from Learn → Progress → Show the quick tour.
+A four-card tour opens the first time the app loads. Replay it from Settings → Show the quick tour.
 
 ### While you practice
 
@@ -115,7 +115,7 @@ Every push to `master` runs the tests and publishes `public/` to GitHub Pages: h
 
 ## Diagnostics
 
-For troubleshooting on a real device. In **Electronic drum kit** (Play → Options), switch on **Record diagnostics**, play as normal, then press **Save diagnostics file**.
+For troubleshooting on a real device. In **Electronic drum kit** (Settings), switch on **Record diagnostics**, play as normal, then press **Save diagnostics file**.
 
 The file holds every message the kit sent, each scored run in full (what was written, every hit and how it was judged), any errors, and details of the device and audio delay. It records data only, never sound, keeps the most recent 30 runs and 3000 events, and stays on the device unless you save and send it.
 

@@ -5,14 +5,9 @@ import { makeGroove, subdivision, emptyPattern, copyMeta, slotPos, validSlots, c
 import { renderPattern, renderChart, renderSingle } from '../notation.js';
 import { transport, playInstrument } from '../audio.js';
 import { tapSession, padButtons, keyHandler, kitHandler, micHandler, flash, resultDetails, isCalibrated } from '../tap.js';
-import { midiSounds } from '../midi.js';
-import { openKitSetup, kitSummary } from '../kitsetup.js';
-import { openTour } from '../tour.js';
-import { openThemePicker, currentTheme } from '../theme.js';
 import { openCalibration } from '../calibrate.js';
 import { logPractice, streak, bestStreak, lastWeek, history } from '../progress.js';
 import { store } from '../store.js';
-import { downloadBackup, restoreBackup, lastBackup } from '../backup.js';
 import { LEVELS, PASS } from '../curriculum.js';
 
 export const title = 'Learn';
@@ -166,9 +161,6 @@ function showProgress() {
   const avg = thisWeek.length ? Math.round(thisWeek.reduce((a, e) => a + (e.score || 0), 0) / thisWeek.length) : null;
   const tile = (n, label) => h('div', { class: 'stat' }, h('div', { class: 'stat-n' }, n), h('div', { class: 'stat-l' }, label));
   const recent = all.slice(-20).reverse();
-  const backupSub = h('span', { class: 'row-sub' }, lastBackup());
-  const kitVal = h('span', { class: 'row-value' }, kitSummary());
-  const themeVal = h('span', { class: 'row-value' }, currentTheme().name);
   root.append(
     h('section', { class: 'card progress-card' },
       h('div', { class: 'stats' },
@@ -185,28 +177,6 @@ function showProgress() {
         h('span', { class: `score-pill${e.score >= 80 ? ' good' : e.score >= 50 ? ' ok' : ''}` }, `${e.score}%`))))
       : h('p', { class: 'footnote' }, 'Nothing yet. Finish a drill, a quiz or a sight-reading run and it shows up here.'),
     h('p', { class: 'footnote' }, 'Every exercise in any tab counts toward your streak. Passed levels come back for review after 1, 2, 4… days, so they stay fresh.'),
-    h('div', { class: 'section-label' }, 'Appearance'),
-    h('div', { class: 'list' },
-      h('button', { type: 'button', class: 'row row-btn', onClick: () => openThemePicker(() => { themeVal.textContent = currentTheme().name; }) },
-        h('span', { class: 'row-main' }, h('span', null, 'Look'), h('span', { class: 'row-sub' }, 'Colours and style of the whole app')),
-        themeVal, svgIcon(ICONS.chevron, 'icon chevron'))),
-    h('div', { class: 'section-label' }, 'Equipment'),
-    h('div', { class: 'list' },
-      h('button', { type: 'button', class: 'row row-btn', onClick: () => openKitSetup(() => { kitVal.textContent = kitSummary(); }) },
-        h('span', { class: 'row-main' }, h('span', null, 'Electronic drum kit'), h('span', { class: 'row-sub' }, 'Play along on a real kit over USB')),
-        kitVal, svgIcon(ICONS.chevron, 'icon chevron')),
-      h('button', { type: 'button', class: 'row row-btn', onClick: () => openTour() },
-        h('span', { class: 'row-main' }, h('span', null, 'Show the quick tour'), h('span', { class: 'row-sub' }, 'What each tab is for')),
-        svgIcon(ICONS.chevron, 'icon chevron'))),
-    h('div', { class: 'section-label' }, 'Backup'),
-    h('div', { class: 'list' },
-      h('button', { type: 'button', class: 'row row-btn', onClick: () => { downloadBackup(); backupSub.textContent = lastBackup(); } },
-        h('span', { class: 'row-main' }, h('span', null, 'Save a backup file'), backupSub),
-        svgIcon(ICONS.chevron, 'icon chevron')),
-      h('button', { type: 'button', class: 'row row-btn', onClick: () => restoreBackup(() => location.reload()) },
-        h('span', { class: 'row-main' }, h('span', null, 'Restore from a backup'), h('span', { class: 'row-sub' }, 'Replaces the progress on this device')),
-        svgIcon(ICONS.chevron, 'icon chevron'))),
-    h('p', { class: 'footnote' }, 'Your progress is stored only in this browser. A backup file lets you keep it safe or move it to another device.'),
   );
 }
 
@@ -663,7 +633,7 @@ function runDrill(li, ci) {
   offMic = micHandler(() => active(), () => D.session, pads);
 
   function hit(id, ts, pad, kit) {
-    if (!kit || midiSounds()) playInstrument(id); // a kit makes its own sound
+    if (!kit) playInstrument(id); // kit hits are sounded where they come in (see kitHandler)
     if (!active()) return flash(pad);
     flash(pad, D.session.hit(id, ts, kit ? 'midi' : 'tap', kit));
   }

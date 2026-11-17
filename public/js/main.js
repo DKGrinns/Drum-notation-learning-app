@@ -6,6 +6,7 @@ import { logEvent } from './diag.js';
 import { maybeShowTour } from './tour.js';
 import { decodeGroove } from './library.js';
 import { toast } from './ui.js';
+import { openSettings } from './settings.js';
 
 // Diagnostics: note anything that goes wrong inside the app.
 window.addEventListener('error', (e) => logEvent('error', { text: `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})` }));
@@ -22,6 +23,8 @@ const viewEl = document.getElementById('view');
 const titleEl = document.getElementById('title');
 const leftBtn = document.getElementById('navLeft');
 const rightBtn = document.getElementById('navRight');
+const gearBtn = document.getElementById('navSettings');
+gearBtn.addEventListener('click', openSettings);
 
 /** Lets a view put buttons in the navigation bar (left / right). */
 const nav = {
@@ -58,7 +61,7 @@ window.addEventListener('scroll', onScroll, { passive: true });
 /** Keep the centered title clear of the bar buttons (it truncates with … instead). */
 function fitNavTitle() {
   const bar = navTitleEl.parentElement;
-  const side = Math.max(leftBtn.hidden ? 0 : leftBtn.offsetWidth, rightBtn.hidden ? 0 : rightBtn.offsetWidth);
+  const side = Math.max(leftBtn.hidden ? 0 : leftBtn.offsetWidth, (rightBtn.hidden ? 0 : rightBtn.offsetWidth) + gearBtn.offsetWidth);
   navTitleEl.style.maxWidth = `${Math.max(60, bar.clientWidth - 2 * (side + 10))}px`;
 }
 window.addEventListener('resize', fitNavTitle);

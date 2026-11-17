@@ -1,4 +1,4 @@
-// A short tour shown the first time the app opens (and again from Learn → Progress).
+// A short tour shown the first time the app opens (and again from Settings).
 import { h, modal } from './ui.js';
 import { store } from './store.js';
 import { midiSupported } from './midi.js';
@@ -10,11 +10,11 @@ const PAGES = [
     body: ['**Play** gives you grooves and whole charts to read. Tap the pads, use your keyboard, or play a real kit.', 'Afterwards every note is coloured: green on time, orange early or late, red missed.'] },
   { art: '🥁', title: 'Use your electronic kit',
     body: () => [midiSupported()
-      ? 'Plug your kit in with a USB cable, then open **Play → Options → Electronic drum kit** and press Connect.'
+      ? 'Plug your kit in with a USB cable, then open **Settings** (the gear at the top right) **→ Electronic drum kit** and press Connect.'
       : 'Electronic kits need Chrome or Edge on Android, Windows, Mac or a Chromebook. This browser can’t connect to one.',
     'With a kit, accents, ghost notes and open hi-hats are checked too.'] },
   { art: '✓', title: 'Before your first run',
-    body: ['Sound reaches your ears a little late, more so over wireless headphones. Run **Calibrate** once in Play so your scores are fair.', '**Build** lets you write your own grooves, **Quiz** drills the symbols, and **Listen** trains your ears.'] },
+    body: ['Sound reaches your ears a little late, more so over wireless headphones. Run **Calibrate tap timing** once in **Settings** so your scores are fair.', '**Build** lets you write your own grooves, **Quiz** drills the symbols, and **Listen** trains your ears.'] },
 ];
 
 const rich = (str) => str.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? h('b', null, part) : part));

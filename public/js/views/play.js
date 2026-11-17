@@ -1,15 +1,12 @@
 // Play: tap along to written grooves and get per-note timing feedback.
 // Sight-reading options deal a new random groove each time.
-import { h, stepper, toggle, slider, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
+import { h, stepper, toggle, row, sheet, toast, svgIcon, ICONS } from '../ui.js';
 import { PRESETS, LEVEL_NAMES, STYLES, makeGroove, randomGroove, randomChart, randomLongChart, normalizeGroove, normalizeChart, chartOrder, usedInstruments, chartInstruments, subdivisionLabel, countInFor } from '../grooves.js';
 import { renderPattern, renderChart } from '../notation.js';
-import { transport, playInstrument, volume, setVolume } from '../audio.js';
+import { transport, playInstrument } from '../audio.js';
 import { store } from '../store.js';
-import { tapSession, padButtons, keyHandler, kitHandler, micHandler, flash, resultDetails, tapOffset, setTapOffset, fmtOffset } from '../tap.js';
-import { midiSounds } from '../midi.js';
-import { openKitSetup, kitSummary } from '../kitsetup.js';
-import { openMicSetup, micSummary } from '../micsetup.js';
-import { openCalibration } from '../calibrate.js';
+import { tapSession, padButtons, keyHandler, kitHandler, micHandler, flash, resultDetails } from '../tap.js';
+import { openSettings } from '../settings.js';
 import { logPractice } from '../progress.js';
 import { loadMyGroove, loadMyChart } from './build.js';
 import { loadLibrary, asChart } from '../library.js';
@@ -82,22 +79,7 @@ export function mount(root, nav) {
   const nextBtn = h('button', { type: 'button', class: 'btn-primary', hidden: true, onClick: newRandom }, 'Next groove');
   const bpmVal = h('span', { class: 'tempo-val' }, S.bpm);
   const loopsVal = h('span', { class: 'row-value' }, S.loops);
-  const offsetVal = h('span', { class: 'row-value' }, fmtOffset(tapOffset()));
   const pads = h('div', { class: 'pads' });
-  const kitVal = h('span', { class: 'row-value' }, kitSummary());
-  const micVal = h('span', { class: 'row-value' }, micSummary());
-  let offsetStepper = null;
-  const showOffset = (v) => {
-    offsetVal.textContent = fmtOffset(v);
-    offsetStepper?.set(v);
-  };
-  offsetStepper = stepper({
-    value: tapOffset(), min: -300, max: 300, step: 5, label: 'tap offset',
-    onChange: (v) => {
-      setTapOffset(v);
-      offsetVal.textContent = fmtOffset(v);
-    },
-  });
 
   const settings = h('div', { class: 'list' },
     row('Hear the groove', toggle(S.hear, (v) => {
@@ -108,11 +90,6 @@ export function mount(root, nav) {
       S.trainer = v;
       store.set('play.trainer', v);
     }, 'Tempo trainer')),
-    row('Click volume', slider(Math.round(volume('click') * 100), (v) => setVolume('click', v / 100), 'Click volume')),
-    row('Drum volume', slider(Math.round(volume('drums') * 100), (v) => {
-      setVolume('drums', v / 100);
-      playInstrument('snare'); // so you hear the new level
-    }, 'Drum volume')),
     row('Times through', loopsVal, stepper({
       value: S.loops, min: 1, max: 8, label: 'times through',
       onChange: (v) => {
@@ -121,16 +98,9 @@ export function mount(root, nav) {
         store.set('play.loops', v);
       },
     })),
-    h('button', { type: 'button', class: 'row row-btn', onClick: () => openCalibration(showOffset) },
-      h('span', { class: 'row-main' }, h('span', null, 'Calibrate tap timing'), h('span', { class: 'row-sub' }, 'Tap along to a click to measure delay')),
+    h('button', { type: 'button', class: 'row row-btn', onClick: openSettings },
+      h('span', { class: 'row-main' }, h('span', null, 'Sound, kit and timing'), h('span', { class: 'row-sub' }, 'Volume, drum kit, microphone and calibration, in Settings')),
       svgIcon(ICONS.chevron, 'icon chevron')),
-    row('Tap offset', offsetVal, offsetStepper),
-    h('button', { type: 'button', class: 'row row-btn', onClick: () => openKitSetup(() => { kitVal.textContent = kitSummary(); }) },
-      h('span', { class: 'row-main' }, h('span', null, 'Electronic drum kit'), h('span', { class: 'row-sub' }, 'Play along on a real kit over USB')),
-      kitVal, svgIcon(ICONS.chevron, 'icon chevron')),
-    h('button', { type: 'button', class: 'row row-btn', onClick: () => openMicSetup(() => { micVal.textContent = micSummary(); }) },
-      h('span', { class: 'row-main' }, h('span', null, 'Microphone'), h('span', { class: 'row-sub' }, 'Play along on a practice pad or acoustic drum')),
-      micVal, svgIcon(ICONS.chevron, 'icon chevron')),
   );
 
   const tempoStepper = stepper({
@@ -163,10 +133,10 @@ export function mount(root, nav) {
     h('div', { class: 'transport' }, startBtn, tempo),
     h('div', { class: 'next-row' }, nextBtn),
     pads,
-    h('div', { class: 'section-label' }, 'Options'),
+    h('div', { class: 'section-label' }, 'This run'),
     settings,
     h('p', { class: 'footnote' },
-      'You’ll hear a bar of clicks, then play along. Use the pads, your keyboard, an electronic drum kit, or a practice pad with the microphone. Calibrate once with the speaker or headphones you practice with.'),
+      'You’ll hear a bar of clicks, then play along. Use the pads, your keyboard, an electronic drum kit, or a practice pad with the microphone. Connect a kit or microphone, and calibrate your timing, in Settings (the gear at the top).'),
   );
 
   els = { grooveName, staffHost, overlay, results, startBtn, nextBtn, pads, settings, tempo, bpmVal, tempoStepper };
@@ -294,7 +264,7 @@ function updateControls() {
 
 /** A tap on a pad or key, or (with `kit`) a hit on an electronic drum kit. */
 function hit(id, ts, pad, kit) {
-  if (!kit || midiSounds()) playInstrument(id); // a kit makes its own sound
+  if (!kit) playInstrument(id); // kit hits are sounded where they come in (see kitHandler)
   if (!active()) return flash(pad);
   flash(pad, S.session.hit(id, ts, kit ? 'midi' : 'tap', kit));
 }
